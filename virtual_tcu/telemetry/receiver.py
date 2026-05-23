@@ -1,4 +1,5 @@
 import socket
+import select
 import threading
 import time
 from typing import Optional
@@ -30,14 +31,13 @@ class TelemetryReceiver:
         try:
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self._sock.settimeout(0.5)
             self._sock.bind((Cfg.UDP_IP, Cfg.UDP_PORT))
         except OSError as e:
             self.error_msg = str(e)
             return False
             
         self._running.set()
-        self._thread = threading.Thread(target=self._loop, daemon=True, name="UDP")
+        self._thread = threading.Thread(target=self._loop, daemon=True, name="UDP_Receiver")
         self._thread.start()
         return True
 
@@ -55,8 +55,14 @@ class TelemetryReceiver:
     def _loop(self):
         while self._running.is_set():
             try:
+                # Production-grade socket polling instead of exception catching
+                ready = select.select([self._sock], [], [], 0.5)
+                if not ready[0]:
+                    continue
+
                 raw, _ = self._sock.recvfrom(1024)
                 td = parse_fh6_packet(raw)
+                
                 if td is not None:
                     now = time.time()
                     with self._lock:
@@ -64,16 +70,15 @@ class TelemetryReceiver:
                         self.last_recv_time = now
                         self._latest = td
                         self._latest_raw = raw
-                    # Ensure logger call is outside the lock to avoid blocking UDP ingest
+                    
                     self._logger.write_packet(raw)
                     if self.on_packet:
                         self.on_packet(td, raw)
-            except socket.timeout:
-                continue
+                        
             except OSError:
                 break
             except Exception as e:
-                print(f"[UDP] unexpected error: {e}")
+                print(f"[UDP] Error in receiver loop: {e}")
                 time.sleep(0.1)
 
     def latest(self) -> Optional[Telemetry]:
