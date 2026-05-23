@@ -2,7 +2,6 @@ import asyncio
 import sys
 import time
 import webbrowser
-
 import keyboard
 
 from virtual_tcu import paths
@@ -16,21 +15,16 @@ from virtual_tcu.telemetry.logger import TelemetryLogger
 from virtual_tcu.telemetry.receiver import TelemetryReceiver
 from virtual_tcu.web.server import WebServer
 
-async def headless_loop(receiver, tcu):
+
+async def headless_loop(receiver):
     print("  [.] Running headless (no aiohttp). Press Ctrl+C to stop.")
-    last_packet_id = -1
     while True:
-        await asyncio.sleep(1.0 / 60.0)
-        td = receiver.latest()
-        current_id = receiver.packets_total
-        if td is not None and receiver.is_live and current_id != last_packet_id:
-            tcu.process(td, receiver.latest_raw())
-            last_packet_id = current_id
+        await asyncio.sleep(1.0)
 
 
 async def main_async(receiver, tcu, config, logger):
     if not AIOHTTP_OK:
-        await headless_loop(receiver, tcu)
+        await headless_loop(receiver)
         return
 
     server = WebServer(receiver, tcu, config, logger)
@@ -38,6 +32,7 @@ async def main_async(receiver, tcu, config, logger):
     url = f"http://{Cfg.WEB_HOST}:{Cfg.WEB_PORT}"
     print(f"  [OK] Web UI at {url}")
     await asyncio.sleep(0.5)
+    
     marker = paths.last_run_marker()
     should_open = True
     if marker.exists():
@@ -45,23 +40,26 @@ async def main_async(receiver, tcu, config, logger):
             age = time.time() - marker.stat().st_mtime
             if age < 30:
                 should_open = False
-                print(
-                    f"  [.] Skipping browser auto-open (recent restart, "
-                    f"open {url} manually)"
-                )
+                print(f"  [.] Skipping browser auto-open (recent restart, open {url} manually)")
         except Exception:
             pass
+            
     if should_open:
         try:
             webbrowser.open(url)
         except:
             pass
+            
     try:
         marker.touch()
     except Exception:
         pass
-    while True:
-        await asyncio.sleep(3600)
+        
+    try:
+        while True:
+            await asyncio.sleep(3600)
+    finally:
+        await server.stop()
 
 
 def setup_hotkeys(tcu: TCULogic, config: ConfigStore, logger: TelemetryLogger):
@@ -77,7 +75,6 @@ def setup_hotkeys(tcu: TCULogic, config: ConfigStore, logger: TelemetryLogger):
                 fn()
             except Exception as e:
                 print(f"  [hotkey {name}] {e}")
-
         return wrapped
 
     def toggle_log():
@@ -105,7 +102,6 @@ def setup_hotkeys(tcu: TCULogic, config: ConfigStore, logger: TelemetryLogger):
 
 def banner():
     from virtual_tcu import __version__
-
     print("=" * 66)
     print(f"  VIRTUAL TCU v{__version__}  —  FH6")
     print("=" * 66)
@@ -127,19 +123,18 @@ def main():
     logger = TelemetryLogger()
     print(f"  [OK] Logger ready ({paths.log_dir()})")
 
-    receiver = TelemetryReceiver(logger)
+    kb = VirtualKeyboard(config)
+    tcu = TCULogic(kb, profiles, config, logger)
+    setup_hotkeys(tcu, config, logger)
+
+    receiver = TelemetryReceiver(logger, on_packet=tcu.process)
     if not receiver.start():
         from virtual_tcu.bootstrap import report_fatal
-
         report_fatal(
             f"UDP port {Cfg.UDP_PORT} bind failed: {receiver.error_msg}\n"
             "  Close other Virtual TCU / python instances, or change the port in config."
         )
     print(f"  [OK] UDP listening on 0.0.0.0:{Cfg.UDP_PORT}")
-
-    kb = VirtualKeyboard(config)
-    tcu = TCULogic(kb, profiles, config, logger)
-    setup_hotkeys(tcu, config, logger)
 
     print("=" * 66)
     print(f"  Open: http://{Cfg.WEB_HOST}:{Cfg.WEB_PORT}")
@@ -151,7 +146,6 @@ def main():
         print("\n  Shutting down...")
     except OSError as e:
         from virtual_tcu.bootstrap import report_fatal
-
         report_fatal(
             f"Web UI port {Cfg.WEB_PORT} unavailable: {e}\n"
             "  Close other apps using this port (another Virtual TCU instance?).",
@@ -159,7 +153,6 @@ def main():
         )
     except Exception as e:
         from virtual_tcu.bootstrap import report_fatal
-
         report_fatal("Unexpected error while running.", exc=e)
     finally:
         logger.stop()
