@@ -10,7 +10,7 @@ from virtual_tcu.telemetry.parser import parse_fh6_packet
 
 
 class TelemetryReceiver:
-    def __init__(self, logger: TelemetryLogger):
+    def __init__(self, logger: TelemetryLogger, on_packet=None):
         self._sock: Optional[socket.socket] = None
         self._running = threading.Event()
         self._thread: Optional[threading.Thread] = None
@@ -18,6 +18,7 @@ class TelemetryReceiver:
         self._latest_raw: Optional[bytes] = None
         self._lock = threading.Lock()
         self._logger = logger
+        self.on_packet = on_packet
         self.packets_total = 0
         self.last_recv_time = 0.0
         self.error_msg = ""
@@ -65,6 +66,8 @@ class TelemetryReceiver:
                         self._latest_raw = raw
                     # Ensure logger call is outside the lock to avoid blocking UDP ingest
                     self._logger.write_packet(raw)
+                    if self.on_packet:
+                        self.on_packet(td, raw)
             except socket.timeout:
                 continue
             except OSError:
