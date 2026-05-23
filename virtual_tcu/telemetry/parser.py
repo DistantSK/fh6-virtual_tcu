@@ -5,6 +5,7 @@ from virtual_tcu.telemetry.model import FH6_PACKET_SIZE, Telemetry
 
 
 def parse_fh6_packet(data: bytes) -> Optional[Telemetry]:
+    # Production fail-safe length verification
     if len(data) < 324 or len(data) < FH6_PACKET_SIZE:
         return None
         
