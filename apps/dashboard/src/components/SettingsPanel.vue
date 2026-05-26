@@ -378,7 +378,7 @@
                 "
                 size="small"
                 style="width: 200px"
-                @update:value="(v) => emit('setConfig', 'output_mode', v)"
+                @update:value="emit('setConfig', 'output_mode', $event)"
               />
               <template v-if="(($props.config as any).output_mode || 'keyboard') === 'gamepad'">
                 <NText depth="3" style="font-size: 12px; display: block; margin: 12px 0 8px">
@@ -400,7 +400,7 @@
                       "
                       size="small"
                       style="width: 140px"
-                      @update:value="(v) => emit('setConfig', g.key, v)"
+                      @update:value="emit('setConfig', g.key, $event)"
                     />
                   </NFlex>
                 </NFlex>
