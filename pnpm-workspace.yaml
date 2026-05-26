@@ -1,8 +1,8 @@
 packages:
   - packages/shared
   - packages/ui
-  - web-ui
-  - electron
+  - apps/dashboard
+  - apps/electron
 
 allowBuilds:
   electron: true
