@@ -382,10 +382,10 @@ dashboard 的 `App.vue` 复用同一套 layout 组件，通过 props 控制 `int
 
 **验收**
 
-- [ ] 浏览器 `:8765` dashboard 布局 / 图表 / sidebar 正常（`pnpm dev:dashboard`）
-- [ ] Electron settings 窗口 6 tab 功能完整（需 Windows 运行时验证）
-- [ ] 浏览器 `:8765` 与 Electron settings 窗口视觉 / 交互一致（**不要求 pixel-perfect**：dashboard 暗色 Tailwind vs settings 浅色 Naive，属设计差异）
-- [ ] 只读 dashboard 不能写入 config（保持现有 WS 权限模型）
+- [x] 浏览器 `:8765` dashboard 布局 / 图表 / sidebar 正常（`pnpm dev:dashboard`）
+- [x] Electron settings 窗口 6 tab 功能完整（需 Windows 运行时验证）
+- [x] 浏览器 `:8765` 与 Electron settings 窗口视觉 / 交互一致（**不要求 pixel-perfect**：dashboard 暗色 Tailwind vs settings 浅色 Naive，属设计差异）
+- [x] 只读 dashboard 不能写入 config（保持现有 WS 权限模型）
 - [x] HUD renderer 保持纯 CSS，未引入 Naive UI
 - [x] `pnpm -r typecheck` 通过（web-ui + electron；`packages/ui` 无独立 typecheck 脚本，由消费者间接校验）
 - [x] `pnpm lint` 零 error（`packages/ui` 有 9 个 `perfectionist/sort-*` 待 `--fix`）
