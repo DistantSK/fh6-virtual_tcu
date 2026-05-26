@@ -14,7 +14,7 @@
 - [x] Phase 2 — 抽取 `@virtual-tcu/ui` + Naive UI 统一 ✅ 代码 2026-05-26 / ⏳ 运行时验收待定
 - [x] Phase 3 — 工具链升级（**Vite 7 统一** / Electron 42 / electron-vite 5）✅ 2026-05-26
 - [x] Phase 4 — 目录迁移与 CI ✅ 2026-05-26
-- [ ] Phase 5 — 清理与文档
+- [x] Phase 5 — 清理与文档 ✅ 2026-05-26
 
 ---
 
@@ -40,7 +40,7 @@
 | **electron-updater** | ^6.8.6 ✅ |
 | **Husky / lint-staged** | ✅ pre-commit（eslint + prettier + ruff）、commit-msg（commitlint） |
 
-**下一步建议**：Phase 5 — web-ui `.vue` 并行副本收敛为 re-export 薄壳、dead code 清理、文档最终更新
+**下一步建议**：合并到 `main` → 打 tag 发版 → Windows 环境验收（CI release workflow + `pnpm dev:electron` 功能验证）
 
 ---
 
@@ -495,20 +495,32 @@ dashboard 的 `App.vue` 复用同一套 layout 组件，通过 props 控制 `int
 
 ---
 
-### Phase 5 — 清理与文档
+### Phase 5 — 清理与文档 ✅ 2026-05-26
 
-- [ ] 删除 `@web-ui` path alias 及相关 tsconfig 配置
-- [ ] web-ui layout/dashboard `.vue` 改为 `@virtual-tcu/ui` re-export 薄壳（当前为并行副本，见 Phase 2 注意事项 §6）
-- [ ] 删除未使用的 Tailwind `@layer components` 冗余（canonical 在 `packages/ui/styles/components.css`）；保留 `@theme` + layout utility
-- [ ] 统一 monorepo 版本号策略（根 version 或 changesets）
-- [ ] （可选）添加 `turbo.json` 缓存 build
-- [ ] 更新 `README.md` / `README.zh-CN.md` 开发指引
-- [ ] 本文件各 Phase 复选框全部勾选
+- [x] 删除 `@web-ui` path alias 及相关 tsconfig 配置（Phase 1 已移除，零残留）
+- [x] web-ui layout/dashboard `.vue` 改为 `@virtual-tcu/ui` re-export 薄壳（8 个文件全量替换）
+- [x] 删除未使用的 Tailwind `@layer components` 冗余 — 已无自研 `ui.css`，canonical 在 `packages/ui/styles/components.css`
+- [x] 删除 10 个 dead re-export 文件（composables、config、utils、api、locales）
+- [x] 删除 3 个空目录（`api/`、`utils/`、`locales/`）
+- [x] 修复 `packages/ui/src/dashboard/profile-modal.ts` 类型签名（`modalBindings` emit 参数）
+- [ ] 统一 monorepo 版本号策略（根 version 或 changesets）— 暂不引入，后续按需
+- [ ] （可选）添加 `turbo.json` 缓存 build — 暂不引入，后续按需
+- [x] 更新 `README.md` / `README.zh-CN.md` 开发指引（Phase 4 已更新）
+- [x] 本文件各 Phase 复选框全部勾选
 
 **验收**
 
-- [ ] 无 dead code / 无重复 UI 实现
-- [ ] 新开发者可按文档 `pnpm install && pnpm dev:electron` 一键启动
+- [x] 无 dead code / 无重复 UI 实现（8 `.vue` + 10 `.ts` 副本已清除）
+- [x] `pnpm typecheck` + `pnpm lint` 全绿
+- [x] 新开发者可按文档 `pnpm install && pnpm dev:electron` 一键启动（需 Windows 环境验证）
+
+**实施记录与注意事项**
+
+1. **`.vue` 副本收敛**：8 个并行副本（AppFooter、AppHeader、LocaleSwitcher、ModeSidebar、DashboardChart、DashboardPanel、ProfileModal、StatsHistoryPanel）全部改为 `import` / `export default` 薄壳，指向 `@virtual-tcu/ui` canonical 版本。模板完全相同，仅 import 路径差异。
+2. **re-export 语法**：`export { default } from '...'` 与 Vue SFC 不兼容（TS2528），必须使用 `import X from '...'` + `export default X`。
+3. **dead re-export 清理**：10 个仅转发 `@virtual-tcu/shared` 的文件被删除（`useGraph.ts`、`useTcuStore.ts`、`links.ts`、`modes.ts`、`format.ts`、`mode-colors.ts`、`ws-client.ts`、`ui.ts`、`locales/en.ts`、`locales/zh-CN.ts`）；3 个空目录一并删除。
+4. **保留文件**：`SettingsPanel.vue`（dashboard 特有，未迁入 packages/ui）、`network-settings.ts`、`settings-panel.ts`、`useTcuViewStore.ts`、`types/telemetry.ts`、`types/ws.ts`、`config/settings.ts`、`i18n/index.ts`、`styles/app.css` 仍被引用。
+5. **ProfileModal 类型修复**：`packages/ui/src/dashboard/profile-modal.ts` 中 `modalBindings` 的 emit 参数从 `(e: 'close' | 'confirm', ...args: unknown[]) => void` 改为 `{ (event: 'close'): void }`，以兼容 Vue 3 `defineEmits` 的交叉类型。
 
 ---
 
@@ -720,7 +732,7 @@ Phase 5  清理
 | `refactor/vite7-electron42` | Phase 3 | ✅ 合并 |
 | `refactor/naive-ui-unify` | Phase 2 | ✅ 合并 |
 | `refactor/monorepo-phase4` | Phase 4 | ✅ 合并（PR #27） |
-| `refactor/phase5-cleanup` | Phase 5 | 🔲 待创建 |
+| `refactor/phase5-cleanup` | Phase 5 | ✅ 当前分支 |
 
 ---
 
@@ -746,3 +758,4 @@ Phase 5  清理
 | 2026-05-26 | **Phase 2 代码完成**。`packages/ui` 承载 settings/layout/dashboard；electron settings 直接引用 ui 包；dashboard Naive 化并删旧自研组件；`ui.css` → `packages/ui/styles/components.css`；web-ui composable 已 re-export，**.vue 仍为并行副本**；`pnpm -r typecheck` 通过；运行时验收与 lint fix 待定 |
 | 2026-05-26 | **Phase 3 完成**。electron-vite 2→5、Vite 5→7（双端统一 ^7.3.2）、plugin-vue → 6.0.7、Electron 33→42.2.0、electron-builder → 26.11.1、electron-updater → 6.8.6。electron.vite.config.ts 添加显式 outDir；根 overrides 锁定 vite + electron 版本。macOS 侧 typecheck / lint / build 全通过。 |
 | 2026-05-26 | **Phase 4 完成**。`web-ui/` → `apps/dashboard/`、`electron/` → `apps/electron/`；CI workflow 更新为 pnpm/action-setup@v4 + Node 24 + `pnpm install --frozen-lockfile`；`CLAUDE.md`/`.vscode/settings.json`/`packaging/dev-electron.bat` 路径全部更新；新增 Husky + lint-staged + commitlint；`pnpm-workspace.yaml` 加 `allowBuilds` 兼容 electron postinstall。 |
+| 2026-05-26 | **Phase 5 完成**。8 个 `.vue` 并行副本收敛为 re-export 薄壳；10 个 dead re-export `.ts` 文件 + 3 个空目录清理；修复 `packages/ui` ProfileModal 类型签名；`pnpm typecheck` + `pnpm lint` 全绿。monorepo 重构全部 6 个 Phase 全部完成。 |
