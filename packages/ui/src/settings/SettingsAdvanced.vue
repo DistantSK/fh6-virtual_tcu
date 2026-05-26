@@ -39,6 +39,11 @@
     sliderUnit,
   } = ctx
 
+  function applyAndRestart() {
+    applyNetworkSettings()
+    restartBackend()
+  }
+
   const outputModeValue = computed(() => {
     const v = (store.config as Record<string, unknown>).output_mode
     return typeof v === 'string' && (v === 'keyboard' || v === 'gamepad') ? v : 'keyboard'
@@ -119,8 +124,8 @@
           v-if="networkDirty"
           type="warning"
           size="small"
-          style="margin-left: 8px" 
-          @click="applyNetworkSettings(); restartBackend()"
+          style="margin-left: 8px"
+          @click="applyAndRestart()"
         >
           {{ t('extras.saveAndRestart') }}
         </NButton>
