@@ -78,3 +78,12 @@ class RevLimiterDetector:
 
     def effective_redline(self, td: Telemetry) -> float | None:
         return self._redline.get(td.car_key)
+
+    def dump(self, car: tuple) -> float | None:
+        """Return the learned redline for *car*, or None."""
+        return self._redline.get(car)
+
+    def load(self, car: tuple, redline: float):
+        """Restore a previously-learned redline for *car*."""
+        if isinstance(redline, (int, float)) and redline > 0:
+            self._redline[car] = float(redline)

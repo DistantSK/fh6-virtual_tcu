@@ -58,6 +58,28 @@ class _ParabolaFit:
         self._abc = (a, b, c)
         return self._abc
 
+    def to_dict(self) -> dict:
+        """Serialise accumulator state so the fit can be restored later."""
+        return {
+            "n": self.n,
+            "sx": self.sx,
+            "sx2": self.sx2,
+            "sx3": self.sx3,
+            "sx4": self.sx4,
+            "sy": self.sy,
+            "sxy": self.sxy,
+            "sx2y": self.sx2y,
+        }
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "_ParabolaFit":
+        """Restore a fit from a previously-saved to_dict() snapshot."""
+        fit = cls()
+        for attr in ("n", "sx", "sx2", "sx3", "sx4", "sy", "sxy", "sx2y"):
+            if attr in d:
+                setattr(fit, attr, float(d[attr]))
+        return fit
+
     @property
     def x_spread(self) -> float:
         if self.n < 2:
@@ -164,3 +186,14 @@ class PowerCurveDetector:
 
     def has_data(self, car_key: tuple) -> bool:
         return self._peaks(car_key)[1] is not None
+
+    def dump(self, car_key: tuple) -> dict | None:
+        """Serialise the parabola fit for *car_key*, or None if no data."""
+        fit = self._fits.get(car_key)
+        return fit.to_dict() if fit is not None else None
+
+    def load(self, car_key: tuple, data: dict):
+        """Restore a parabola fit from a previously-saved dump."""
+        if not isinstance(data, dict):
+            return
+        self._fits[car_key] = _ParabolaFit.from_dict(data)

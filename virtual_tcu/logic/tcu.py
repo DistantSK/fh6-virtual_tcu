@@ -2,6 +2,7 @@ import threading
 import time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC
 
 import keyboard
 
@@ -110,7 +111,45 @@ class TCULogic:
         if Cfg.REVERSE_HOLD_MS > 0:
             self._setup_paddle_listeners()
 
+    def save_profiles(self):
+        """Persist all learning data to ProfileStore for the current car."""
+        ck = self._current_car_key
+        if ck is None or ck[0] <= 0:
+            return
+        profile: dict = {}
+        gr = self._calibrator.dump(ck)
+        if gr is not None:
+            profile["gear_ratios"] = gr["ratios"]
+            profile["gear_counts"] = gr["counts"]
+        pc = self._power_curve.dump(ck)
+        if pc is not None:
+            profile["power_curve"] = pc
+        rl = self._rev_limiter.dump(ck)
+        if rl is not None:
+            profile["rev_limiter"] = rl
+        if profile:
+            from datetime import datetime
+
+            profile["updated_at"] = datetime.now(UTC).isoformat()
+            self._profiles.set(ck, profile)
+
+    def _load_profiles(self, ck: tuple):
+        """Restore learning data from ProfileStore for *ck*."""
+        data = self._profiles.get(ck)
+        if data is None:
+            return
+        if "gear_ratios" in data:
+            self._calibrator.load(
+                ck,
+                {"ratios": data["gear_ratios"], "counts": data.get("gear_counts", {})},
+            )
+        if "power_curve" in data:
+            self._power_curve.load(ck, data["power_curve"])
+        if "rev_limiter" in data:
+            self._rev_limiter.load(ck, data["rev_limiter"])
+
     def shutdown(self):
+        self.save_profiles()
         self._audio_executor.shutdown(wait=False)
         self._discord_executor.shutdown(wait=False)
         if self._discord_rpc:
@@ -402,6 +441,9 @@ class TCULogic:
 
         ck = td.car_key
         if ck[0] > 0 and ck != self._current_car_key:
+            # Save previous car's learned state before switching.
+            if self._current_car_key is not None:
+                self.save_profiles()
             self._current_car_key = ck
             self._peak_rpm = 0.0
             self._peak_g = 0.0
@@ -413,6 +455,8 @@ class TCULogic:
             self._rev_limiter._redline.pop(ck, None)
             self._rev_limiter._rpm_window.pop(ck, None)
             self._rev_limiter._peak_hold.pop(ck, None)
+            # Restore previously-saved learning data for this car+tune.
+            self._load_profiles(ck)
 
         current_mode = self.mode
         if current_mode != self._last_processed_mode:

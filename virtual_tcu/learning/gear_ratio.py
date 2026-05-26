@@ -68,3 +68,23 @@ class GearRatioCalibrator:
 
     def has_data(self, car_key: tuple) -> bool:
         return car_key in self._ratios and len(self._ratios[car_key]) >= 2
+
+    def dump(self, car_key: tuple) -> dict | None:
+        """Serialise learned ratios for *car_key*, or None if no data."""
+        if not self.has_data(car_key):
+            return None
+        return {
+            "ratios": dict(self._ratios.get(car_key, {})),
+            "counts": dict(self._counts.get(car_key, {})),
+        }
+
+    def load(self, car_key: tuple, data: dict):
+        """Restore ratios from a previously-saved dump."""
+        if not isinstance(data, dict):
+            return
+        ratios = data.get("ratios")
+        counts = data.get("counts")
+        if isinstance(ratios, dict):
+            self._ratios[car_key] = {int(k): float(v) for k, v in ratios.items()}
+        if isinstance(counts, dict):
+            self._counts[car_key] = {int(k): int(v) for k, v in counts.items()}
