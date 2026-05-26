@@ -280,6 +280,36 @@ function createSettingsWindow() {
   settingsWindow.webContents.on('did-finish-load', () => {
     if (backendReady) broadcastBackendReady()
   })
+
+  // Retry on network errors (backend restart, Vite dev server restart, etc.)
+  // so the window doesn't permanently land on a chrome-error:// page.
+  let _loadRetries = 0
+  const MAX_RETRIES = 10
+  const RETRY_DELAY_MS = 2000
+
+  settingsWindow.webContents.on(
+    'did-fail-load',
+    (_e, errorCode, _desc, validatedURL, isMainFrame) => {
+      if (!isMainFrame) return
+      // Only retry on transient network errors — not on file-not-found, etc.
+      // -102 = CONNECTION_REFUSED, -105 = NAME_NOT_RESOLVED,
+      // -106 = INTERNET_DISCONNECTED, -118 = CONNECTION_TIMED_OUT
+      if (![-102, -105, -106, -118].includes(errorCode)) return
+      if (_loadRetries >= MAX_RETRIES) return
+
+      _loadRetries++
+      console.warn(`[settings] load failed (${errorCode}), retry ${_loadRetries}/${MAX_RETRIES}…`)
+      setTimeout(() => {
+        if (settingsWindow && !settingsWindow.isDestroyed()) {
+          if (is.dev && process.env.ELECTRON_RENDERER_URL) {
+            settingsWindow.loadURL(settingsPagePath())
+          } else {
+            settingsWindow.loadFile(settingsPagePath())
+          }
+        }
+      }, RETRY_DELAY_MS)
+    },
+  )
 }
 
 function broadcastBackendReady() {

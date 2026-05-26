@@ -40,8 +40,18 @@
   } = ctx
 
   function applyAndRestart() {
-    applyNetworkSettings()
-    restartBackend()
+    // Save network config keys individually via set_config so they are
+    // written to tcu_config.json synchronously before the backend is
+    // killed.  This avoids the race where set_network's async listener
+    // restart is interrupted by the process kill.
+    const host = networkDraftHost.value
+    const webPort = networkDraftWebPort.value
+    const udpPort = networkDraftUdpPort.value
+    if (host) store.setConfig('web_host', host)
+    if (webPort) store.setConfig('web_port', Number(webPort))
+    if (udpPort) store.setConfig('udp_port', Number(udpPort))
+    // Brief delay so the WS messages reach the backend and flush to disk.
+    setTimeout(() => restartBackend(), 600)
   }
 
   const outputModeValue = computed(() => {

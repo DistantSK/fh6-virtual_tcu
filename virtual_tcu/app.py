@@ -139,11 +139,10 @@ def main():
     if output_mode == "gamepad":
         try:
             kb = GamepadOutput(config)
-        except RuntimeError as e:
+        except Exception as e:
             print(f"[ERROR] {e}")
             print("        Falling back to keyboard output.")
             kb = KeyboardOutput(config)
-            # Persist the fallback so the next launch doesn't hit the same error.
             config.set("output_mode", "keyboard")
     else:
         kb = KeyboardOutput(config)

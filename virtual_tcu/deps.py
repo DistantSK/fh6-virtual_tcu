@@ -28,13 +28,8 @@ except ImportError:
     web = None
     WSMsgType = None
 
-try:
-    import vgamepad  # noqa: F401
-
-    VGAMEPAD_OK = True
-except ImportError:
-    VGAMEPAD_OK = False
-    print("[WARN] vgamepad missing — gamepad output mode unavailable. Run: pip install vgamepad")
+# vgamepad is probed lazily in gamepad_output.py (imports ViGEmClient.dll).
+# Do not import it here — a missing DLL must not prevent the backend from starting.
 
 if not KEYBOARD_OK:
     sys.exit(1)

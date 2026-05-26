@@ -11,15 +11,17 @@ project_root = Path(SPECPATH)
 dist_data = project_root / "virtual_tcu" / "web" / "dist"
 if not dist_data.is_dir():
     raise SystemExit(
-        f"Missing {dist_data} — run: cd web-ui && npm install && npm run build"
+        f"Missing {dist_data} — run: pnpm build:dashboard"
     )
 
 _kb_datas, _kb_binaries, _kb_hidden = collect_all("keyboard")
 _aio_datas, _aio_binaries, _aio_hidden = collect_all("aiohttp")
+_vg_datas, _vg_binaries, _vg_hidden = collect_all("vgamepad")
 
 hiddenimports = (
     list(_kb_hidden)
     + list(_aio_hidden)
+    + list(_vg_hidden)
     + collect_submodules("multidict")
     + collect_submodules("yarl")
     + collect_submodules("frozenlist")
@@ -37,8 +39,8 @@ hiddenimports = (
 a = Analysis(
     ["virtual_tcu.py"],
     pathex=[str(project_root)],
-    binaries=_kb_binaries + _aio_binaries,
-    datas=[(str(dist_data), "virtual_tcu/web/dist")] + _kb_datas + _aio_datas,
+    binaries=_kb_binaries + _aio_binaries + _vg_binaries,
+    datas=[(str(dist_data), "virtual_tcu/web/dist")] + _kb_datas + _aio_datas + _vg_datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
