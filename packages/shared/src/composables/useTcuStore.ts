@@ -14,13 +14,11 @@ async function resolveElectronWsUrl(): Promise<string | null> {
     isElectron?: boolean
     tcu?: { getBackendInfo: () => Promise<BackendInfo> }
   }
-  if (!w.isElectron || !w.tcu?.getBackendInfo)
-    return null
+  if (!w.isElectron || !w.tcu?.getBackendInfo) return null
   try {
     const info = await w.tcu.getBackendInfo()
     return info.wsUrl ?? null
-  }
-  catch {
+  } catch {
     return null
   }
 }
@@ -42,7 +40,8 @@ export function useTcuStore() {
   const shiftHistory = ref<ShiftHistoryItem[]>([])
   const watchdogStuck = ref(false)
   const webUrls = ref<WebUrls | null>(null)
-  const webBindStatus = ref<{ ok: boolean, error?: string } | null>(null)
+  const webBindStatus = ref<{ ok: boolean; error?: string } | null>(null)
+  const effectiveOutputMode = ref<'keyboard' | 'gamepad' | null>(null)
 
   const modal = reactive({
     open: false,
@@ -51,6 +50,9 @@ export function useTcuStore() {
     text: '',
     readOnly: false,
   })
+
+  let gamepadCheckResolve: ((r: { ok: boolean; error: string }) => void) | null = null
+  let gamepadCheckTimer: ReturnType<typeof setTimeout> | null = null
 
   function handle(msg: WsInbound) {
     switch (msg.type) {
@@ -62,28 +64,23 @@ export function useTcuStore() {
         packetsTotal.value = msg.data.packets_total
         logStatus.value = msg.data.log_status
         webUrls.value = msg.data.web_urls ?? null
+        effectiveOutputMode.value = msg.data.effective_output_mode ?? null
         connected.value = true
         break
       case 'telemetry':
         telemetry.value = msg.data
-        if (msg.data.shift_history)
-          shiftHistory.value = msg.data.shift_history
-        if (msg.data.log_status)
-          logStatus.value = msg.data.log_status
+        if (msg.data.shift_history) shiftHistory.value = msg.data.shift_history
+        if (msg.data.log_status) logStatus.value = msg.data.log_status
         watchdogStuck.value = !!msg.data.watchdog_stuck
         break
       case 'state':
-        if (msg.data.mode)
-          mode.value = msg.data.mode
-        if (msg.data.live !== undefined)
-          live.value = msg.data.live
-        if (msg.data.shift_count !== undefined)
-          shiftCount.value = msg.data.shift_count
-        if (msg.data.packets_total !== undefined)
-          packetsTotal.value = msg.data.packets_total
+        if (msg.data.mode) mode.value = msg.data.mode
+        if (msg.data.live !== undefined) live.value = msg.data.live
+        if (msg.data.shift_count !== undefined) shiftCount.value = msg.data.shift_count
+        if (msg.data.packets_total !== undefined) packetsTotal.value = msg.data.packets_total
         break
       case 'config_reset':
-        Object.keys(config).forEach(k => delete config[k])
+        Object.keys(config).forEach((k) => delete config[k])
         Object.assign(config, msg.data)
         break
       case 'log_status':
@@ -92,9 +89,17 @@ export function useTcuStore() {
       case 'profile_export':
         openModal('export', '', JSON.stringify(msg.data, null, 2))
         break
+      case 'gamepad_check':
+        if (gamepadCheckResolve) {
+          if (gamepadCheckTimer) clearTimeout(gamepadCheckTimer)
+          gamepadCheckTimer = null
+          gamepadCheckResolve({ ok: msg.ok, error: msg.error })
+          gamepadCheckResolve = null
+        }
+        break
       case 'profile_imported':
         if (msg.ok && msg.data) {
-          Object.keys(config).forEach(k => delete config[k])
+          Object.keys(config).forEach((k) => delete config[k])
           Object.assign(config, msg.data)
         }
         break
@@ -105,8 +110,7 @@ export function useTcuStore() {
         if (msg.ok !== false) {
           config.web_host = msg.data.bind_host
           config.web_port = msg.data.port
-          if (msg.data.udp_port !== undefined)
-            config.udp_port = msg.data.udp_port
+          if (msg.data.udp_port !== undefined) config.udp_port = msg.data.udp_port
           client.setUrl(wsUrlFromWebUrls(msg.data))
         }
         break
@@ -122,8 +126,7 @@ export function useTcuStore() {
   }
 
   function setConfig(key: string, value: string | number | boolean) {
-    if (key === 'web_host' || key === 'web_port' || key === 'udp_port')
-      return
+    if (key === 'web_host' || key === 'web_port' || key === 'udp_port') return
     send({ type: 'set_config', key, value })
     config[key] = value
   }
@@ -138,6 +141,26 @@ export function useTcuStore() {
 
   function resetConfig() {
     send({ type: 'reset_config' })
+  }
+
+  function checkGamepad(timeoutMs = 8000): Promise<{ ok: boolean; error: string }> {
+    // Clear any in-flight check
+    if (gamepadCheckTimer) clearTimeout(gamepadCheckTimer)
+    if (gamepadCheckResolve) {
+      gamepadCheckResolve({ ok: false, error: 'cancelled' })
+      gamepadCheckResolve = null
+    }
+    return new Promise((resolve) => {
+      gamepadCheckResolve = resolve
+      gamepadCheckTimer = setTimeout(() => {
+        if (gamepadCheckResolve) {
+          gamepadCheckResolve({ ok: false, error: 'timeout' })
+          gamepadCheckResolve = null
+        }
+        gamepadCheckTimer = null
+      }, timeoutMs)
+      send({ type: 'check_gamepad' })
+    })
   }
 
   function openModal(m: 'export' | 'import', title: string, content: string) {
@@ -158,18 +181,15 @@ export function useTcuStore() {
         await navigator.clipboard.writeText(modal.text)
         modal.title = 'copied'
         setTimeout(closeModal, 800)
-      }
-      catch {
+      } catch {
         /* user can copy manually */
       }
-    }
-    else {
+    } else {
       try {
         const parsed = JSON.parse(modal.text)
         send({ type: 'import_profile', data: parsed })
         closeModal()
-      }
-      catch (e) {
+      } catch (e) {
         console.warn(`Invalid JSON: ${(e as Error).message}`)
       }
     }
@@ -178,8 +198,7 @@ export function useTcuStore() {
   const sessionStats = computed(() => telemetry.value?.session_stats ?? null)
 
   const connectionLabel = computed(() => {
-    if (!connected.value)
-      return 'disconnected'
+    if (!connected.value) return 'disconnected'
     return live.value ? 'live' : 'standby'
   })
 
@@ -187,7 +206,7 @@ export function useTcuStore() {
   let cleanupBackendExit: (() => void) | null = null
 
   async function connectToBackend(wsUrl?: string) {
-    const url = wsUrl ?? await resolveElectronWsUrl() ?? TcuWsClient.defaultUrl()
+    const url = wsUrl ?? (await resolveElectronWsUrl()) ?? TcuWsClient.defaultUrl()
     client.setUrl(url)
     client.connect()
   }
@@ -202,15 +221,18 @@ export function useTcuStore() {
     })
     await connectToBackend()
 
-    const tcu = (window as { tcu?: {
-      onBackendReady?: (cb: (info: BackendInfo) => void) => () => void
-      onBackendExit?: (cb: (info: unknown) => void) => () => void
-    } }).tcu
+    const tcu = (
+      window as {
+        tcu?: {
+          onBackendReady?: (cb: (info: BackendInfo) => void) => () => void
+          onBackendExit?: (cb: (info: unknown) => void) => () => void
+        }
+      }
+    ).tcu
 
     if (tcu?.onBackendReady) {
       cleanupBackendReady = tcu.onBackendReady((info) => {
-        if (info.wsUrl)
-          void connectToBackend(info.wsUrl)
+        if (info.wsUrl) void connectToBackend(info.wsUrl)
       })
     }
     if (tcu?.onBackendExit) {
@@ -240,12 +262,14 @@ export function useTcuStore() {
     watchdogStuck,
     webUrls,
     webBindStatus,
+    effectiveOutputMode,
     sessionStats,
     connectionLabel,
     modal,
     send,
     setMode,
     setConfig,
+    checkGamepad,
     applyWebBind,
     applyNetwork,
     resetConfig,

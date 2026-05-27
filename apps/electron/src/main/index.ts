@@ -15,7 +15,7 @@
 
 import type { ChildProcess } from 'node:child_process'
 import type { BackendEndpoints } from './backend-config'
-import { exec, spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
@@ -36,6 +36,7 @@ let backend: ChildProcess | null = null
 let backendPid: number | null = null
 let backendReady = false
 let isQuitting = false
+let isBackendKilled = false
 
 // ----- Backend spawn ---------------------------------------------------------
 
@@ -98,6 +99,13 @@ function startBackend(): Promise<void> {
     const timeout = setTimeout(() => {
       if (!settled) {
         settled = true
+        // Kill the hung process so it doesn't become an orphan and
+        // clear `backend` so a subsequent retry spawns a fresh one.
+        if (backend) {
+          backend.kill('SIGKILL')
+          backend = null
+          backendPid = null
+        }
         rejectStart(new Error('Backend did not become ready within 30s'))
       }
     }, 30_000)
@@ -165,6 +173,32 @@ function startBackend(): Promise<void> {
   })
 }
 
+function killBackendProcessSync(pid: number): void {
+  if (process.platform === 'win32') {
+    // /T = tree kill (children included), /F = force
+    spawnSync('taskkill', ['/F', '/T', '/PID', String(pid)], { windowsHide: true })
+  } else {
+    // Negative pid kills the entire process group on POSIX.
+    try {
+      process.kill(-pid, 'SIGKILL')
+    } catch {
+      try {
+        process.kill(pid, 'SIGKILL')
+      } catch {
+        // Process already dead — expected.
+      }
+    }
+  }
+}
+
+function forceStopBackendSync(): void {
+  const pid = backendPid
+  backend = null
+  backendPid = null
+  backendReady = false
+  if (pid != null) killBackendProcessSync(pid)
+}
+
 function stopBackend(): Promise<void> {
   return new Promise((resolve) => {
     const proc = backend
@@ -191,30 +225,29 @@ function stopBackend(): Promise<void> {
       clearTimeout(forceTimeout)
       resolve()
     }
-
-    proc.once('exit', done)
     forceTimeout = setTimeout(() => {
       console.warn(`[backend] exit event did not fire for pid ${pid} — resolving anyway`)
       done()
     }, 5_000)
 
-    if (process.platform === 'win32') {
-      // /T = tree kill (children included), /F = force
-      exec(`taskkill /F /T /PID ${pid}`, (err) => {
-        if (err) {
-          // taskkill returns non-zero if the process is already gone — that's fine.
-          console.warn(`[backend] taskkill pid ${pid}: ${err.message}`)
-        }
-      })
-    } else {
-      // Negative pid kills the entire process group on POSIX.
-      try {
-        process.kill(-pid, 'SIGKILL')
-      } catch {
-        // Process already dead — expected.
-      }
-    }
+    proc.once('exit', done)
+    killBackendProcessSync(pid)
   })
+}
+
+function prepareForQuit(): void {
+  isQuitting = true
+  tray?.destroy()
+  tray = null
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.removeAllListeners('close')
+    settingsWindow.destroy()
+    settingsWindow = null
+  }
+  if (hudWindow && !hudWindow.isDestroyed()) {
+    hudWindow.destroy()
+    hudWindow = null
+  }
 }
 
 // ----- Windows ---------------------------------------------------------------
@@ -411,10 +444,17 @@ function registerIpc() {
   })
 
   ipcMain.handle('app:open-external', (_e, url: unknown) => {
-    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return
-    shell.openExternal(url).catch((err) => {
-      console.error('[main] openExternal failed:', err)
-    })
+    if (typeof url !== 'string') return
+    try {
+      const parsed = new URL(url)
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        shell
+          .openExternal(parsed.href)
+          .catch((err) => console.error('[main] openExternal failed:', err))
+      }
+    } catch {
+      // Invalid URL — silently ignored
+    }
   })
 
   ipcMain.handle('app:open-settings', () => {
@@ -472,6 +512,26 @@ function registerIpc() {
   })
 
   ipcMain.handle('app:get-version', () => app.getVersion())
+
+  ipcMain.handle('app:install-vigembus', async () => {
+    const msiName = 'ViGEmBusSetup_x64.msi'
+    const msiPath = app.isPackaged
+      ? join(process.resourcesPath, 'driver', msiName)
+      : join(__dirname, '..', '..', '..', '..', 'driver', msiName)
+
+    if (!existsSync(msiPath)) {
+      console.error(`[install-vigembus] MSI not found at: ${msiPath}`)
+      return { ok: false, error: `Installer not found: ${msiPath}` }
+    }
+
+    console.log(`[install-vigembus] launching: ${msiPath}`)
+    const error = await shell.openPath(msiPath)
+    if (error) {
+      console.error(`[install-vigembus] failed: ${error}`)
+      return { ok: false, error }
+    }
+    return { ok: true }
+  })
 }
 
 // ----- Auto-update -----------------------------------------------------------
@@ -550,11 +610,14 @@ if (!gotLock) {
   })
 }
 
-app.on('before-quit', () => {
-  isQuitting = true
-  stopBackend()
-  tray?.destroy()
-  tray = null
+app.on('before-quit', (e) => {
+  if (!isBackendKilled) {
+    e.preventDefault()
+    prepareForQuit()
+    forceStopBackendSync()
+    isBackendKilled = true
+    app.quit()
+  }
 })
 
 app.on('window-all-closed', () => {
