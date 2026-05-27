@@ -3,6 +3,7 @@
 
 from pathlib import Path
 
+import vgamepad
 from PyInstaller.utils.hooks import collect_all, collect_submodules
 
 block_cipher = None
@@ -16,10 +17,25 @@ if not dist_data.is_dir():
 
 _kb_datas, _kb_binaries, _kb_hidden = collect_all("keyboard")
 _aio_datas, _aio_binaries, _aio_hidden = collect_all("aiohttp")
+_vg_datas, _vg_binaries, _vg_hidden = collect_all("vgamepad")
+
+# vgamepad loads ViGEmClient.dll via a hard-coded relative path at import time;
+# PyInstaller does not always pick up nested package DLLs without explicit datas.
+_vg_client = Path(vgamepad.__file__).parent / "win" / "vigem" / "client"
+_vg_dll_datas = [
+    (str(_vg_client / arch / "ViGEmClient.dll"), f"vgamepad/win/vigem/client/{arch}")
+    for arch in ("x64", "x86")
+    if (_vg_client / arch / "ViGEmClient.dll").is_file()
+]
+if not _vg_dll_datas:
+    raise SystemExit(
+        f"Missing ViGEmClient.dll under {_vg_client} — reinstall vgamepad before building"
+    )
 
 hiddenimports = (
     list(_kb_hidden)
     + list(_aio_hidden)
+    + list(_vg_hidden)
     + collect_submodules("multidict")
     + collect_submodules("yarl")
     + collect_submodules("frozenlist")
@@ -31,14 +47,19 @@ hiddenimports = (
         "virtual_tcu.deps",
         "virtual_tcu.state.shift_history",
         "keyboard",
+        "vgamepad",
     ]
 )
 
 a = Analysis(
     ["virtual_tcu.py"],
     pathex=[str(project_root)],
-    binaries=_kb_binaries + _aio_binaries,
-    datas=[(str(dist_data), "virtual_tcu/web/dist")] + _kb_datas + _aio_datas,
+    binaries=_kb_binaries + _aio_binaries + _vg_binaries,
+    datas=[(str(dist_data), "virtual_tcu/web/dist")]
+    + _kb_datas
+    + _aio_datas
+    + _vg_datas
+    + _vg_dll_datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
