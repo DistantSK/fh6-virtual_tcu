@@ -39,6 +39,43 @@ def _build_button_map() -> dict[str, int]:
     }
 
 
+def check_gamepad_available() -> tuple[bool, str]:
+    """Probe whether the ViGEmBus driver is installed and functional.
+
+    Opens a transient bus connection only — does **not** spawn a virtual
+    XInput device.  Spawning ``VX360Gamepad`` during a check would create a
+    ghost controller in Windows and can fail while an active ``GamepadOutput``
+    instance already holds the bus.
+    """
+    try:
+        import vgamepad.win.vigem_client as vcli
+        import vgamepad.win.vigem_commons as vcom
+    except (ImportError, OSError) as e:
+        return False, f"client_unavailable: {e}"
+
+    busp = None
+    try:
+        busp = vcli.vigem_alloc()
+        if not busp:
+            return False, "alloc_failed"
+        err = vcli.vigem_connect(busp)
+        if err != vcom.VIGEM_ERRORS.VIGEM_ERROR_NONE:
+            name = vcom.VIGEM_ERRORS(err).name
+            if name == "VIGEM_ERROR_BUS_NOT_FOUND":
+                return False, "driver_missing"
+            return False, name
+        return True, ""
+    except Exception as e:
+        return False, str(e)
+    finally:
+        if busp:
+            try:
+                vcli.vigem_disconnect(busp)
+                vcli.vigem_free(busp)
+            except Exception:
+                pass
+
+
 class GamepadOutput(OutputInterface):
     """Inject shift commands as virtual Xbox 360 controller button presses.
 
@@ -53,7 +90,9 @@ class GamepadOutput(OutputInterface):
     may already be present.
     """
 
-    VIGEMBUS_URL = "https://github.com/ViGEm/ViGEmBus/releases"
+    VIGEMBUS_URL = (
+        "https://github.com/Forza-Love/fh6-virtual_tcu/raw/main/driver/ViGEmBusSetup_x64.msi"
+    )
 
     # How long a button is held down (seconds).
     BUTTON_HOLD_S = 0.06

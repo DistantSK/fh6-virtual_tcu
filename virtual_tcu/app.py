@@ -139,11 +139,19 @@ def main():
     if output_mode == "gamepad":
         try:
             kb = GamepadOutput(config)
-        except Exception as e:
-            print(f"[ERROR] {e}")
-            print("        Falling back to keyboard output.")
+        except RuntimeError as e:
+            print("-" * 66)
+            print("  [!!] GAMEPAD MODE UNAVAILABLE")
+            print(f"  {e}")
+            print("  The ViGEmBus driver is not installed.")
+            print(f"  Download: {GamepadOutput.VIGEMBUS_URL}")
+            print("  After installing and rebooting, gamepad mode will activate")
+            print("  automatically (output_mode is already set to 'gamepad').")
+            print("-" * 66)
             kb = KeyboardOutput(config)
-            config.set("output_mode", "keyboard")
+            # Do NOT overwrite output_mode — the user explicitly chose gamepad.
+            # Their preference is preserved so it takes effect once the driver
+            # is installed and the backend is restarted.
     else:
         kb = KeyboardOutput(config)
 

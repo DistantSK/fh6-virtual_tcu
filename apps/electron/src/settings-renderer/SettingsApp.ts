@@ -252,6 +252,16 @@ export function useSettingsApp() {
     toggleHud,
     openGithub,
     updater,
-    store,
+    store: {
+      ...store,
+      installViGEmBus: () => {
+        const api = (
+          window as unknown as {
+            tcu?: { installViGEmBus?: () => Promise<{ ok: boolean; error?: string }> }
+          }
+        ).tcu
+        api?.installViGEmBus?.()
+      },
+    },
   }
 }
