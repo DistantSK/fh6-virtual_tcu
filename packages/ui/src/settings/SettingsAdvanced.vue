@@ -70,7 +70,7 @@
   async function onOutputModeChange(v: string) {
     if (v === 'gamepad') {
       // Backend is already driving shifts via a virtual gamepad — no probe needed.
-      if (store.effectiveOutputMode === 'gamepad') {
+      if (store.effectiveOutputMode.value === 'gamepad') {
         gamepadCheckError.value = ''
         store.setConfig('output_mode', v)
         return
