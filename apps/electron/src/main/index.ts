@@ -36,6 +36,7 @@ let backend: ChildProcess | null = null
 let backendPid: number | null = null
 let backendReady = false
 let isQuitting = false
+let isBackendKilled = false
 
 // ----- Backend spawn ---------------------------------------------------------
 
@@ -98,6 +99,13 @@ function startBackend(): Promise<void> {
     const timeout = setTimeout(() => {
       if (!settled) {
         settled = true
+        // Kill the hung process so it doesn't become an orphan and
+        // clear `backend` so a subsequent retry spawns a fresh one.
+        if (backend) {
+          backend.kill('SIGKILL')
+          backend = null
+          backendPid = null
+        }
         rejectStart(new Error('Backend did not become ready within 30s'))
       }
     }, 30_000)
@@ -208,10 +216,17 @@ function stopBackend(): Promise<void> {
       })
     } else {
       // Negative pid kills the entire process group on POSIX.
+      // NOTE: full POSIX support would also require `detached: true` in
+      // spawn() options so the child is a process-group leader.  As a
+      // defence-in-depth fallback we also try a direct kill.
       try {
         process.kill(-pid, 'SIGKILL')
       } catch {
-        // Process already dead — expected.
+        try {
+          process.kill(pid, 'SIGKILL')
+        } catch {
+          // Process already dead — expected.
+        }
       }
     }
   })
@@ -411,10 +426,17 @@ function registerIpc() {
   })
 
   ipcMain.handle('app:open-external', (_e, url: unknown) => {
-    if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) return
-    shell.openExternal(url).catch((err) => {
-      console.error('[main] openExternal failed:', err)
-    })
+    if (typeof url !== 'string') return
+    try {
+      const parsed = new URL(url)
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        shell
+          .openExternal(parsed.href)
+          .catch((err) => console.error('[main] openExternal failed:', err))
+      }
+    } catch {
+      // Invalid URL — silently ignored
+    }
   })
 
   ipcMain.handle('app:open-settings', () => {
@@ -550,11 +572,17 @@ if (!gotLock) {
   })
 }
 
-app.on('before-quit', () => {
-  isQuitting = true
-  stopBackend()
-  tray?.destroy()
-  tray = null
+app.on('before-quit', (e) => {
+  if (!isBackendKilled) {
+    e.preventDefault()
+    isQuitting = true
+    tray?.destroy()
+    tray = null
+    stopBackend().finally(() => {
+      isBackendKilled = true
+      app.quit()
+    })
+  }
 })
 
 app.on('window-all-closed', () => {
