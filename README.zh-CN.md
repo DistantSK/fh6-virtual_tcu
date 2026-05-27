@@ -1,14 +1,54 @@
-# Virtual TCU v13.1 — Forza Horizon 6
+# Virtual TCU — 极限竞速：地平线 6
 
+<div align="center">
+
+[![Release](https://img.shields.io/github/v/release/Forza-Love/fh6-virtual_tcu?label=release&sort=semver)](https://github.com/Forza-Love/fh6-virtual_tcu/releases)
+[![CI](https://img.shields.io/github/actions/workflow/status/Forza-Love/fh6-virtual_tcu/ci.yml?branch=main&label=CI)](https://github.com/Forza-Love/fh6-virtual_tcu/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/Forza-Love/fh6-virtual_tcu)](LICENSE)
 [![Discord](https://img.shields.io/discord/1508360305712037988?label=Discord&color=5865F2)](https://discordapp.com/invite/ghj3PGe9)
+[![GitHub stars](https://img.shields.io/github/stars/Forza-Love/fh6-virtual_tcu?style=social)](https://github.com/Forza-Love/fh6-virtual_tcu/stargazers)
 
-**简体中文 | [English](README.md)**
+<br>
+
+[![Windows](https://img.shields.io/badge/平台-Windows%2010%2F11-0078D6?logo=windows&logoColor=white)](#快速选择)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D24.0.0-339933?logo=node.js&logoColor=white)](package.json)
+[![pnpm](https://img.shields.io/badge/pnpm-10.33-F69220?logo=pnpm&logoColor=white)](package.json)
+[![Python](https://img.shields.io/badge/python-%3E%3D3.12-3776AB?logo=python&logoColor=white)](pyproject.toml)
+[![Vue](https://img.shields.io/badge/vue-3.5-4FC08D?logo=vuedotjs&logoColor=white)](apps/dashboard/package.json)
+[![Electron](https://img.shields.io/badge/electron-42-47848F?logo=electron&logoColor=white)](package.json)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](package.json)
+[![Ruff](https://img.shields.io/badge/Ruff-lint%20%2B%20format-D7FF64?logo=ruff&logoColor=black)](pyproject.toml)
+
+<br>
+
+[![FH6](https://img.shields.io/badge/游戏-地平线%206-E10600?logo=xbox&logoColor=white)](#forza-horizon-6-游戏内设置首次配置)
+[![i18n](https://img.shields.io/badge/i18n-en%20%7C%20zh--CN-22c55e)](apps/dashboard/)
+[![ViGEm](https://img.shields.io/badge/输出-键盘%20%7C%20手柄-64748b)](#3-手柄模式可选)
+
+**[English](README.md) · 简体中文**
+
+</div>
 
 > 本项目核心功能源码由 **Insightful** 提供，面向 [**Forza Mods**](https://discord.gg/forzamods) Discord 社区用户。
 
 面向《极限竞速：地平线 6》的外部自适应变速箱控制器。通过 UDP 读取游戏遥测，根据驾驶风格、油门、转速、车速与刹车等信号自动换挡，并向游戏注入换挡指令 — **键盘按键**（E/Q）或**虚拟手柄按钮**（B/X）通过 ViGEmBus。
 
 **v13** 提供 Windows 托盘桌面应用（Electron），含浮动 HUD 与自动更新；实时遥测仪表盘在浏览器 **http://127.0.0.1:8765** 打开（支持 English / 简体中文）。仍提供纯 Python 便携版，适合不需要 Electron 的用户。
+
+| | |
+| :-- | :-- |
+| 🚗 **五种驾驶模式** | 舒适 · 动态 · 竞技 · 漂移 · 越野 |
+| 🧠 **按车学习** | 齿比、功率曲线、断油转速、运动指数 |
+| 📡 **60 Hz 主循环** | UDP 遥测入 → 换挡逻辑 → 键盘 / 手柄出 |
+| 🖥️ **桌面壳** | 托盘、设置窗口、HUD 悬浮窗、浏览器仪表盘 |
+| 🔄 **一键更新** | `electron-updater` 将 Electron 与 Python 后端一并升级 |
+
+```mermaid
+flowchart LR
+  FH6["极限竞速：地平线 6"] -->|"UDP :5555"| TCU["Virtual TCU\n(Python)"]
+  TCU -->|"E/Q 或 B/X"| FH6
+  TCU -->|"WS :8765"| UI["仪表盘 / HUD\n(Vue + Electron)"]
+```
 
 ---
 
@@ -61,7 +101,7 @@
 
 默认情况下，TCU 注入键盘按键（**E** 升挡 / **Q** 降挡）。如果你偏好使用虚拟手柄按钮（无需设置键盘绑定），可在 **设置 → Extras → 输出模式** 中切换到手柄模式。
 
-手柄模式需要安装 **[ViGEmBus](https://github.com/ViGEm/ViGEmBus/releases) 驱动** — 一次性系统安装：
+手柄模式需要安装 **[ViGEmBus](https://github.com/Forza-Love/fh6-virtual_tcu/raw/main/driver/ViGEmBusSetup_x64.msi) 驱动** — 一次性系统安装：
 
 1. 从上方链接下载 `ViGEmBus_Setup_*.exe`。
 2. 以管理员身份运行 → 同意 UAC 弹窗 → 安装。
@@ -439,7 +479,7 @@ virtualTCU/
 
 ### 手柄模式不工作
 
-- 安装 **[ViGEmBus](https://github.com/ViGEm/ViGEmBus/releases) 驱动** → 重启 Windows。
+- 安装 **[ViGEmBus](https://github.com/Forza-Love/fh6-virtual_tcu/raw/main/driver/ViGEmBusSetup_x64.msi) 驱动** → 重启 Windows。
 - 如果已安装，确认安装后已重启过电脑。
 - 如不想安装驱动，在设置 → Extras 中将输出模式切换回**键盘**。
 - 驱动缺失时 TCU 会自动回退到键盘模式。
