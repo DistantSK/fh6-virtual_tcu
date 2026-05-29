@@ -1,5 +1,28 @@
 # Changelog
 
+## [13.1.2] — 2026-05-29
+
+### Added
+
+- **HTTP health polling for Electron backend ready** — the main process treats aiohttp as ready when localhost responds, in addition to the `[backend-ready]` stdout marker.
+- **ViGEmBus MSI integrity check** — Electron verifies the SHA-256 of the bundled installer before launching it.
+
+### Changed
+
+- **Electron backend lifecycle module** — spawn/stop/restart moved to `BackendLifecycle` with serialized restart, async process-tree kill, and `readline` stdout parsing.
+- **IPC action results** — `openExternal` and `installViGEmBus` return `{ ok, error }` for clearer error handling in the settings UI.
+
+### Fixed
+
+- **Backend crash on Japanese Windows (cp932)** — force UTF-8 on stdout/stderr and use ASCII-safe console log text so PyInstaller builds no longer exit before the web server starts.
+- **Concurrent backend restart race** — tray and IPC restart no longer spawn overlapping Python processes when triggered in quick succession.
+
+### Security
+
+- **`open-external` URL policy** — block localhost, private IPs, and link-local hosts from renderer-initiated `shell.openExternal` (manual LAN dashboard access in an external browser is unchanged).
+
+---
+
 ## [13.1.1] — 2026-05-27
 
 ### Added
@@ -48,6 +71,29 @@
 ---
 
 # 更新日志
+
+## [13.1.2] — 2026-05-29
+
+### 新增
+
+- **Electron 后端 HTTP 健康探测** — 除 stdout `[backend-ready]` 外，主进程通过本机 HTTP 响应判断 aiohttp 是否已就绪。
+- **ViGEmBus MSI 完整性校验** — 启动安装包前校验内置 MSI 的 SHA-256，防止被篡改后静默执行。
+
+### 变更
+
+- **Electron 后端生命周期模块** — 抽离 `BackendLifecycle`，重启互斥、异步进程树杀灭、`readline` 按行解析 stdout。
+- **IPC 结构化返回** — `openExternal` 与 `installViGEmBus` 返回 `{ ok, error }`，设置页可展示明确错误。
+
+### 修复
+
+- **日文 Windows (cp932) 启动崩溃** — 强制 stdout/stderr 使用 UTF-8，控制台日志改为 ASCII 安全字符，避免打包版在 banner 处 `UnicodeEncodeError` 导致一直 disconnected。
+- **并发重启竞态** — 托盘/IPC 快速连点「重启后端」不再重叠拉起多个 Python 进程。
+
+### 安全
+
+- **`open-external` URL 策略** — 拦截渲染进程发起的 localhost、内网与 link-local 链接（用户在其它设备浏览器手动访问局域网仪表板不受影响）。
+
+---
 
 ## [13.1.1] — 2026-05-27
 
