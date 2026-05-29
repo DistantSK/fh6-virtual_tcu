@@ -18,11 +18,46 @@ function isPrivateIpv4(a: number, b: number): boolean {
   return false
 }
 
+function extractIpv4FromMappedV6(host: string): string | null {
+  const prefix = '::ffff:'
+  if (!host.startsWith(prefix)) return null
+
+  const tail = host.slice(prefix.length)
+  if (tail.includes('.')) {
+    return isIP(tail) === 4 ? tail : null
+  }
+
+  const parts = tail.split(':')
+  if (parts.length !== 2) return null
+
+  const hi = Number.parseInt(parts[0], 16)
+  const lo = Number.parseInt(parts[1], 16)
+  if (
+    !Number.isFinite(hi) ||
+    !Number.isFinite(lo) ||
+    hi < 0 ||
+    hi > 0xffff ||
+    lo < 0 ||
+    lo > 0xffff
+  ) {
+    return null
+  }
+
+  return `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`
+}
+
 function isPrivateIpv6(host: string): boolean {
   const h = host.toLowerCase()
   if (h === '::1') return true
   if (h.startsWith('fe80:')) return true
   if (h.startsWith('fc') || h.startsWith('fd')) return true
+
+  const mappedIpv4 = extractIpv4FromMappedV6(h)
+  if (mappedIpv4) {
+    const parts = mappedIpv4.split('.').map((p) => Number(p))
+    return isPrivateIpv4(parts[0], parts[1])
+  }
+
   return false
 }
 
