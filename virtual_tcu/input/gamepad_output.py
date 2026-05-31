@@ -7,6 +7,7 @@ prompt).  Only Windows is supported in production.
 
 import time
 from concurrent.futures import ThreadPoolExecutor
+from threading import Lock
 
 from virtual_tcu.config.store import ConfigStore
 from virtual_tcu.input.interface import OutputInterface
@@ -107,6 +108,12 @@ class GamepadOutput(OutputInterface):
         self._config = config
         self._vg = vg
 
+        # Mirror the physical brake onto the virtual LT during shifts so the
+        # injected state packet does not momentarily zero the player's brake.
+        self._preserve_brake = bool(config.get("gamepad_preserve_brake", True))
+        self._brake = 0.0
+        self._brake_lock = Lock()
+
         try:
             self._gamepad = vg.VX360Gamepad()
         except Exception as e:
@@ -140,6 +147,10 @@ class GamepadOutput(OutputInterface):
         # Gamepads don't have a keyboard-style echo problem — the TCU
         # injects buttons, the game reads them, no paddle listener conflict.
         return False
+
+    def set_brake(self, brake: float) -> None:
+        with self._brake_lock:
+            self._brake = max(0.0, min(1.0, brake))
 
     def shift_to(self, from_gear: int, target_gear: int):
         # from_gear and target_gear must be 0-10
@@ -176,10 +187,24 @@ class GamepadOutput(OutputInterface):
             print(f"[Gamepad] unknown button '{name}' - check config")
             return
         try:
+            self._apply_brake()
             self._gamepad.press_button(button=btn)
             self._gamepad.update()
             time.sleep(self.BUTTON_HOLD_S)
+            self._apply_brake()
             self._gamepad.release_button(button=btn)
             self._gamepad.update()
         except Exception as e:
             print(f"[Gamepad] input simulation failed: {e}")
+
+    def _apply_brake(self) -> None:
+        """Mirror the cached physical brake onto the virtual LT.
+
+        Must run before each update() — the state packet carries LT, so a
+        stale 0 would override the player's real brake for that frame.
+        """
+        if not self._preserve_brake:
+            return
+        with self._brake_lock:
+            brake = self._brake
+        self._gamepad.left_trigger(value=int(brake * 255))
