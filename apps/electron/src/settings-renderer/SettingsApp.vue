@@ -1,6 +1,8 @@
 <script setup lang="ts">
   import {
+    CheckmarkOutline,
     EyeOutline,
+    GlobeOutline,
     HelpCircleOutline,
     OpenOutline,
     RocketOutline,
@@ -21,6 +23,7 @@
     NBadge,
     NButton,
     NDivider,
+    NDropdown,
     NFlex,
     NIcon,
     NInput,
@@ -28,12 +31,11 @@
     NLayoutContent,
     NLayoutHeader,
     NModal,
-    NSelect,
     NTabPane,
     NTabs,
     NTag,
   } from 'naive-ui'
-  import { provide } from 'vue'
+  import { computed, h, provide } from 'vue'
   import { brandIconUrl, useSettingsApp } from './SettingsApp'
 
   const ctx = useSettingsApp()
@@ -68,6 +70,21 @@
     if (statusLabel.value.kind === 'success') return 'success'
     if (statusLabel.value.kind === 'warning') return 'warning'
     return 'error'
+  }
+
+  const localeMenuOptions = computed(() =>
+    localeOptions.map((opt) => ({
+      key: opt.value,
+      label: opt.label,
+      icon:
+        opt.value === locale.value
+          ? () => h(NIcon, { component: CheckmarkOutline, color: '#2563eb' })
+          : () => h(NIcon, null, { default: () => null }),
+    })),
+  )
+
+  function onLocaleSelect(key: string) {
+    setLocale(key as 'en' | 'zh-CN')
   }
 </script>
 
@@ -104,13 +121,18 @@
           </NFlex>
 
           <NFlex :size="8" align="center">
-            <NSelect
-              :value="locale"
-              :options="localeOptions"
+            <NDropdown
+              trigger="hover"
+              :options="localeMenuOptions"
               size="small"
-              style="width: 120px"
-              @update:value="(v) => setLocale(v)"
-            />
+              @select="onLocaleSelect"
+            >
+              <NButton size="small" quaternary circle :title="t('locale.label')">
+                <template #icon>
+                  <NIcon :component="GlobeOutline" />
+                </template>
+              </NButton>
+            </NDropdown>
             <NButton size="small" @click="toggleHud">
               <template #icon>
                 <NIcon :component="EyeOutline" />
