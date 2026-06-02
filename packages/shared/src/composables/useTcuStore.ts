@@ -1,5 +1,5 @@
 import type { LogStatus, ShiftHistoryItem, TelemetrySnapshot } from '../types/telemetry'
-import type { ConfigMap, DriveMode, WebUrls, WsInbound } from '../types/ws'
+import type { ConfigMap, DriveMode, TcuUiMode, WebUrls, WsInbound } from '../types/ws'
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { TcuWsClient } from '../api/ws-client'
 
@@ -42,6 +42,7 @@ export function useTcuStore() {
   const webUrls = ref<WebUrls | null>(null)
   const webBindStatus = ref<{ ok: boolean; error?: string } | null>(null)
   const effectiveOutputMode = ref<'keyboard' | 'vjoy' | null>(null)
+  const uiMode = ref<TcuUiMode>('view_only')
 
   const modal = reactive({
     open: false,
@@ -62,6 +63,7 @@ export function useTcuStore() {
         logStatus.value = msg.data.log_status
         webUrls.value = msg.data.web_urls ?? null
         effectiveOutputMode.value = msg.data.effective_output_mode ?? null
+        uiMode.value = msg.data.ui_mode === 'full' ? 'full' : 'view_only'
         connected.value = true
         break
       case 'telemetry':
@@ -133,6 +135,26 @@ export function useTcuStore() {
 
   function resetConfig() {
     send({ type: 'reset_config' })
+  }
+
+  function restartBackend() {
+    send({ type: 'restart_backend' })
+  }
+
+  function logStart(mode: 'events' | 'all') {
+    send({ type: 'log_start', mode })
+  }
+
+  function logStop() {
+    send({ type: 'log_stop' })
+  }
+
+  function exportProfile() {
+    send({ type: 'export_profile' })
+  }
+
+  function openImportProfile(title: string) {
+    openModal('import', title, '')
   }
 
   function openModal(m: 'export' | 'import', title: string, content: string) {
@@ -235,6 +257,7 @@ export function useTcuStore() {
     webUrls,
     webBindStatus,
     effectiveOutputMode,
+    uiMode,
     sessionStats,
     connectionLabel,
     modal,
@@ -244,6 +267,11 @@ export function useTcuStore() {
     applyWebBind,
     applyNetwork,
     resetConfig,
+    restartBackend,
+    logStart,
+    logStop,
+    exportProfile,
+    openImportProfile,
     openModal,
     closeModal,
     confirmModal,

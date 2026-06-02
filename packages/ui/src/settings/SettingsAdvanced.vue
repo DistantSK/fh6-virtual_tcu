@@ -1,5 +1,7 @@
 <script setup lang="ts">
   import {
+    CLUTCH_ASSIST_FIELDS,
+    CLUTCH_TIMING_SLIDERS,
     VJOY_BUTTON_OPTIONS,
     VJOY_SHIFT_BUTTON_FIELDS,
   } from '@virtual-tcu/shared/config/settings'
@@ -269,6 +271,51 @@
           </NFlex>
         </NGridItem>
       </NGrid>
+      <NFlex justify="space-between" align="center" :size="8" style="margin-top: 16px">
+        <NText>{{ t('extras.clutchAssist') }}</NText>
+        <NSwitch
+          :value="configBool('feat_clutch_assist')"
+          @update:value="(v: boolean) => store.setConfig('feat_clutch_assist', v)"
+        />
+      </NFlex>
+      <template v-if="configBool('feat_clutch_assist')">
+        <NText depth="3" style="font-size: 11px; display: block; margin: 4px 0 12px">
+          {{ t('extras.clutchAssistHint') }}
+        </NText>
+        <NFlex
+          v-for="ck in CLUTCH_ASSIST_FIELDS"
+          :key="ck.key"
+          justify="space-between"
+          align="center"
+          :size="8"
+        >
+          <NText>{{ t(`extras.${ck.i18nKey}`) }}</NText>
+          <NInput
+            :value="configText(ck.key)"
+            :placeholder="ck.placeholder"
+            size="small"
+            style="width: 100px; font-family: ui-monospace, monospace"
+            @update:value="(v) => store.setConfig(ck.key, v.trim().toLowerCase())"
+          />
+        </NFlex>
+        <NFlex vertical :size="14" style="margin-top: 12px">
+          <div v-for="s in CLUTCH_TIMING_SLIDERS" :key="s.key">
+            <NFlex justify="space-between" align="center" style="margin-bottom: 4px">
+              <NText>{{ t(`extras.${s.i18nKey}`) }}</NText>
+              <NText code style="font-family: ui-monospace, monospace">
+                {{ configNumber(s.key) }}ms
+              </NText>
+            </NFlex>
+            <NSlider
+              :value="configNumber(s.key)"
+              :min="s.min"
+              :max="s.max"
+              :step="s.step ?? 1"
+              @update:value="(v) => store.setConfig(s.key, v)"
+            />
+          </div>
+        </NFlex>
+      </template>
     </NCard>
 
     <NCard :title="t('extras.hotkeys')" size="small" :bordered="false">

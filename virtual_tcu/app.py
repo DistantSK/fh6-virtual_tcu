@@ -35,7 +35,13 @@ async def main_async(receiver, tcu, config, logger, *, backend_only: bool = Fals
         await headless_loop()
         return
 
-    server = WebServer(receiver, tcu, config, logger)
+    server = WebServer(
+        receiver,
+        tcu,
+        config,
+        logger,
+        ui_mode="view_only" if backend_only else "full",
+    )
     await server.start()
     urls = format_startup_urls(config)
     print(f"  [OK] Web UI at {urls[0]}" + (f", {urls[1]}" if len(urls) > 1 else ""))

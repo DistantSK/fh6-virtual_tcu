@@ -12,6 +12,8 @@ export interface WebUrls {
   udp_port?: number
 }
 
+export type TcuUiMode = 'full' | 'view_only'
+
 export interface InitPayload {
   mode: DriveMode
   live: boolean
@@ -22,6 +24,8 @@ export interface InitPayload {
   log_status: LogStatus
   web_urls?: WebUrls
   effective_output_mode?: 'keyboard' | 'vjoy'
+  /** `view_only` when spawned with --backend-only (Electron); `full` for standalone backend. */
+  ui_mode?: TcuUiMode
 }
 
 export interface StatePayload {
@@ -42,6 +46,7 @@ export type WsOutbound =
   | { type: 'request_graph' }
   | { type: 'export_profile' }
   | { type: 'import_profile'; data: unknown }
+  | { type: 'restart_backend' }
 
 export type WsInbound =
   | { type: 'init'; data: InitPayload }

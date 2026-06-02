@@ -52,11 +52,14 @@ class WebServer:
         tcu: TCULogic,
         config: ConfigStore,
         logger: TelemetryLogger,
+        *,
+        ui_mode: str = "full",
     ):
         self._recv = receiver
         self._tcu = tcu
         self._config = config
         self._logger = logger
+        self._ui_mode = "view_only" if ui_mode == "view_only" else "full"
         self._clients: set = set()
         self._ui_available = _dist_index() is not None
         self._runner = None
@@ -93,6 +96,7 @@ class WebServer:
                         "effective_output_mode": (
                             "vjoy" if isinstance(self._tcu._kb, VJoyOutput) else "keyboard"
                         ),
+                        "ui_mode": self._ui_mode,
                     },
                 }
             )

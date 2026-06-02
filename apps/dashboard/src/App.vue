@@ -4,10 +4,14 @@
   import AppHeader from './components/AppHeader.vue'
   import DashboardPanel from './components/DashboardPanel.vue'
   import ModeSidebar from './components/ModeSidebar.vue'
+  import ProfileModal from './components/ProfileModal.vue'
+  import SettingsPanel from './components/SettingsPanel.vue'
   import StatsHistoryPanel from './components/StatsHistoryPanel.vue'
-  import { useTcuViewStore } from './composables/useTcuViewStore'
+  import { useDashboardApp } from './composables/use-dashboard-app'
 
   const {
+    isFullUi,
+    mainGridClass,
     mode,
     connected,
     live,
@@ -17,30 +21,72 @@
     logStatus,
     shiftHistory,
     sessionStats,
-  } = useTcuViewStore()
+    watchdogStuck,
+    config,
+    modal,
+    onSetMode,
+    onSetConfig,
+    onApplyNetwork,
+    onResetConfig,
+    onRestartBackend,
+    onLogStart,
+    onLogStop,
+    onExportProfile,
+    onOpenImport,
+    onCloseModal,
+    onConfirmModal,
+    onModalText,
+  } = useDashboardApp()
 </script>
 
 <template>
   <TcuConfigProvider dark>
     <AppHeader :mode="mode" :connected="connected" :live="live" />
-    <main
-      class="bg-tcu-border grid min-h-0 grid-cols-[260px_1fr_300px] gap-px max-[1100px]:grid-cols-1"
-    >
+    <main :class="mainGridClass">
       <ModeSidebar
         :mode="mode"
         :shift-count="shiftCount"
         :packets-total="packetsTotal"
         :telemetry="telemetry"
         :log-status="logStatus"
-        :interactive="false"
+        :interactive="isFullUi"
+        @set-mode="onSetMode"
+        @log-start="onLogStart"
+        @log-stop="onLogStop"
       />
       <DashboardPanel :live="live" :telemetry="telemetry" />
+      <SettingsPanel
+        v-if="isFullUi"
+        :config="config"
+        :telemetry="telemetry"
+        :session-stats="sessionStats"
+        :shift-history="shiftHistory"
+        :watchdog-stuck="watchdogStuck"
+        @set-config="onSetConfig"
+        @apply-network="onApplyNetwork"
+        @reset-config="onResetConfig"
+        @restart-backend="onRestartBackend"
+        @export-profile="onExportProfile"
+        @open-import="onOpenImport"
+      />
       <StatsHistoryPanel
+        v-else
         :telemetry="telemetry"
         :session-stats="sessionStats"
         :shift-history="shiftHistory"
       />
     </main>
-    <AppFooter />
+    <AppFooter :view-only="!isFullUi" />
+    <ProfileModal
+      v-if="isFullUi"
+      :open="modal.open"
+      :mode="modal.mode"
+      :title="modal.title ? $t(`modal.${modal.title}`) : undefined"
+      :text="modal.text"
+      :read-only="modal.readOnly"
+      @close="onCloseModal"
+      @confirm="onConfirmModal"
+      @update:text="onModalText"
+    />
   </TcuConfigProvider>
 </template>
