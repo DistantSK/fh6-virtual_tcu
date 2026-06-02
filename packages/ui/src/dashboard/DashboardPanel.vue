@@ -61,31 +61,36 @@
           ></div>
         </div>
 
-        <div class="grid h-[280px] shrink-0 grid-cols-[220px_1fr_180px] gap-3 overflow-hidden">
-          <div class="flex flex-col gap-3">
+        <div class="grid h-[300px] shrink-0 grid-cols-[220px_1fr_180px] gap-3 overflow-hidden">
+          <div class="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
             <div
-              class="border-tcu-border bg-tcu-bg-1 ui-card relative flex flex-1 flex-col items-center justify-center overflow-hidden rounded-xl border p-2"
+              class="border-tcu-border bg-tcu-bg-1 relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border p-2 shadow-inner"
             >
-              <ShiftAdvisorArrows
-                :advice="showShiftAdvisor ? shiftAdvice : ''"
-                :hint="hint"
-                :show-hint="showShiftAdvisor && !!hint"
-                size="lg"
-              >
-                <div
-                  class="text-[140px] leading-none font-black tracking-tighter tabular-nums"
-                  :class="
-                    state === 'SHIFTING'
-                      ? 'text-accent-2'
-                      : gear === 'R'
-                        ? 'text-warn'
-                        : 'text-white'
-                  "
+              <div class="flex min-h-0 w-full flex-1 items-center justify-center">
+                <ShiftAdvisorArrows
+                  class="w-full"
+                  :advice="showShiftAdvisor ? shiftAdvice : ''"
+                  :hint="hint"
+                  :show-hint="showShiftAdvisor && !!hint"
+                  size="lg"
                 >
-                  {{ gear }}
-                </div>
-              </ShiftAdvisorArrows>
-              <div class="text-tcu-txt-dim mt-1 text-[10px] tracking-widest uppercase">
+                  <div
+                    class="text-[140px] leading-none font-black tracking-tighter tabular-nums"
+                    :class="
+                      state === 'SHIFTING'
+                        ? 'text-accent-2'
+                        : gear === 'R'
+                          ? 'text-warn'
+                          : 'text-white'
+                    "
+                  >
+                    {{ gear }}
+                  </div>
+                </ShiftAdvisorArrows>
+              </div>
+              <div
+                class="text-tcu-txt-dim absolute bottom-2 left-1/2 -translate-x-1/2 text-[10px] tracking-widest uppercase"
+              >
                 {{ t.drivetrain || 'DRIVETRAIN' }}
               </div>
             </div>
@@ -100,9 +105,9 @@
             </div>
           </div>
 
-          <div class="flex flex-col gap-3">
+          <div class="flex h-full min-h-0 flex-col gap-3 overflow-hidden">
             <div
-              class="border-tcu-border bg-tcu-bg-1 relative flex flex-1 flex-col justify-center rounded-lg border p-5"
+              class="border-tcu-border bg-tcu-bg-1 relative flex min-h-0 flex-1 flex-col justify-center overflow-hidden rounded-lg border p-5"
             >
               <div class="mb-2 flex items-end justify-between">
                 <div
@@ -179,7 +184,7 @@
           </div>
 
           <div
-            class="border-tcu-border bg-tcu-bg-1 flex justify-between gap-2 rounded-lg border p-4"
+            class="border-tcu-border bg-tcu-bg-1 flex h-full min-h-0 justify-between gap-2 overflow-hidden rounded-lg border p-4"
           >
             <div class="flex h-full w-10 flex-col items-center justify-end gap-2">
               <span class="text-[10px] font-bold text-white tabular-nums">{{
@@ -228,7 +233,9 @@
           </div>
         </div>
 
-        <div class="grid h-[156px] shrink-0 grid-cols-[1fr_200px_200px] gap-3 overflow-hidden">
+        <div
+          class="relative z-0 grid h-[156px] shrink-0 grid-cols-[1fr_200px_200px] gap-3 overflow-hidden"
+        >
           <div
             class="bg-tcu-bg-1 relative flex flex-col justify-center overflow-hidden rounded-lg border p-5"
             :class="

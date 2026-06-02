@@ -22,30 +22,34 @@
 
 <template>
   <div class="shift-advisor" :class="[`size-${size}`, { active: advice }]">
-    <div
-      v-if="advice === 'down'"
-      class="arrow arrow-down"
-      role="img"
-      :aria-label="$t('electronApp.shiftDown')"
-    >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <path d="M12 5v14M6 13l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
-      </svg>
+    <div class="arrow-col arrow-col--left">
+      <div
+        v-if="advice === 'down'"
+        class="arrow arrow-down"
+        role="img"
+        :aria-label="$t('electronApp.shiftDown')"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M12 5v14M6 13l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </div>
     </div>
 
     <div class="shift-advisor-slot">
       <slot />
     </div>
 
-    <div
-      v-if="advice === 'up'"
-      class="arrow arrow-up"
-      role="img"
-      :aria-label="$t('electronApp.shiftUp')"
-    >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <path d="M12 19V5M6 11l6-6 6 6" stroke-linecap="round" stroke-linejoin="round" />
-      </svg>
+    <div class="arrow-col arrow-col--right">
+      <div
+        v-if="advice === 'up'"
+        class="arrow arrow-up"
+        role="img"
+        :aria-label="$t('electronApp.shiftUp')"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M12 19V5M6 11l6-6 6 6" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </div>
     </div>
 
     <p v-if="showHint && hint" class="shift-hint">{{ hint }}</p>
@@ -54,19 +58,30 @@
 
 <style scoped>
   .shift-advisor {
+    --arrow-col-w: 2rem;
     display: grid;
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: var(--arrow-col-w) 1fr var(--arrow-col-w);
     align-items: center;
     gap: 0.5rem;
     width: 100%;
   }
 
   .shift-advisor.size-sm {
+    --arrow-col-w: 1.35rem;
     gap: 0.35rem;
   }
 
   .shift-advisor.size-lg {
+    --arrow-col-w: 2.75rem;
     gap: 0.75rem;
+  }
+
+  .arrow-col {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--arrow-col-w);
+    min-width: var(--arrow-col-w);
   }
 
   .shift-advisor-slot {
@@ -74,6 +89,7 @@
     align-items: center;
     justify-content: center;
     min-width: 0;
+    justify-self: center;
   }
 
   .arrow {
