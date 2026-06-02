@@ -1,6 +1,7 @@
 import type { TelemetrySnapshot } from '@virtual-tcu/shared/types/telemetry'
 import type { Ref } from 'vue'
 import { parseShiftAdvice } from '@virtual-tcu/shared/config/hud'
+import { formatGearLabel } from '@virtual-tcu/shared/utils/format'
 import { computed } from 'vue'
 
 export function useDashboardPanel(telemetry: Ref<TelemetrySnapshot | null>) {
@@ -31,12 +32,7 @@ export function useDashboardPanel(telemetry: Ref<TelemetrySnapshot | null>) {
   const isAirborne = computed(() => t.value.airborne || false)
   const isYawLocked = computed(() => t.value.yaw_transient || false)
 
-  const gear = computed(() => {
-    const g = t.value.gear
-    if (g === 0) return 'R'
-    if (g === 11) return 'N'
-    return g || '-'
-  })
+  const gear = computed(() => formatGearLabel(t.value.gear, t.value.is_race_on))
 
   const gDotStyle = computed(() => {
     const maxG = 1.5

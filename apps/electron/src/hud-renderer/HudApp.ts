@@ -3,7 +3,9 @@ import type { TelemetrySnapshot } from '@virtual-tcu/shared/types/telemetry'
 import type { DriveMode } from '@virtual-tcu/shared/types/ws'
 import { normalizeHudTemplate } from '@virtual-tcu/shared/config/hud'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useHudClickThrough } from './hud-click-through'
 import { useHudView } from './hud-view'
+import { useHudWindowSync } from './hud-window-sync'
 
 export function useHudApp() {
   const connected = ref(false)
@@ -112,24 +114,15 @@ export function useHudApp() {
     window.hud?.setIgnoreMouse(ignore)
   }
 
+  const { syncFromPointer } = useHudClickThrough(clickThrough, applyMouseIgnore)
+
   function syncClickThroughMouse(e: MouseEvent) {
-    if (!clickThrough.value) {
-      applyMouseIgnore(false)
-      return
-    }
-
-    const el = document.elementFromPoint(e.clientX, e.clientY)
-    applyMouseIgnore(!el?.closest('.interactive'))
-  }
-
-  function onMouseLeave() {
-    if (clickThrough.value) applyMouseIgnore(true)
+    syncFromPointer(e)
   }
 
   function toggleClickThrough(e: MouseEvent) {
     clickThrough.value = !clickThrough.value
-    if (clickThrough.value) syncClickThroughMouse(e)
-    else applyMouseIgnore(false)
+    syncFromPointer(e)
   }
 
   const hudProps = computed(() => ({
@@ -143,12 +136,24 @@ export function useHudApp() {
     gearStyle: view.gearStyle.value,
     speed: view.speed.value,
     rpm: view.rpm.value,
+    rpmMax: view.rpmMax.value,
     rpmPct: view.rpmPct.value,
     rpmBarColor: view.rpmBarColor.value,
-    hint: view.hint.value,
+    throttle: view.throttle.value,
+    brake: view.brake.value,
     shiftAdvice: view.shiftAdvice.value,
     showShiftAdvisor: view.showShiftAdvisor.value,
+    showShiftBanner: view.showShiftBanner.value,
   }))
+
+  useHudWindowSync({
+    hudTemplate,
+    connected,
+    live,
+    showShiftAdvisor: view.showShiftAdvisor,
+    showShiftBanner: view.showShiftBanner,
+    clickThrough,
+  })
 
   onMounted(() => {
     void connectWs()
@@ -185,6 +190,5 @@ export function useHudApp() {
     close,
     toggleClickThrough,
     syncClickThroughMouse,
-    onMouseLeave,
   }
 }

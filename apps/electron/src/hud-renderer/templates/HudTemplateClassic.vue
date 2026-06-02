@@ -1,7 +1,9 @@
 <script setup lang="ts">
   import type { ShiftAdvice } from '@virtual-tcu/shared/config/hud'
-  import ShiftAdvisorArrows from '@virtual-tcu/ui/components/ShiftAdvisorArrows.vue'
+  import HudArcTach from '../HudArcTach.vue'
   import HudChrome from '../HudChrome.vue'
+  import HudPedalGauge from '../HudPedalGauge.vue'
+  import HudShiftHints from '../HudShiftHints.vue'
 
   defineProps<{
     mode: string
@@ -16,7 +18,8 @@
     rpm: number
     rpmPct: number
     rpmBarColor: string
-    hint: string
+    throttle: number
+    brake: number
     shiftAdvice: ShiftAdvice
     showShiftAdvisor: boolean
   }>()
@@ -38,33 +41,20 @@
       @close="emit('close')"
     />
 
-    <div class="main-row">
-      <ShiftAdvisorArrows
-        :advice="showShiftAdvisor ? shiftAdvice : ''"
-        :hint="hint"
-        size="sm"
-        class="gear-wrap"
-      >
+    <HudArcTach :rpm-pct="rpmPct" :show-ticks="false">
+      <HudShiftHints :advice="shiftAdvice" :show="showShiftAdvisor" size="md" placement="below">
         <div class="gear" :style="gearStyle">{{ gearLabel }}</div>
-      </ShiftAdvisorArrows>
+      </HudShiftHints>
+    </HudArcTach>
 
-      <div class="metrics">
-        <div class="rpm-line">
-          <span class="rpm-num">{{ rpm }}</span>
-          <span class="rpm-unit">RPM</span>
-        </div>
-        <div class="rpm-bar">
-          <div class="rpm-fill" :style="{ width: `${rpmPct * 100}%`, background: rpmBarColor }" />
-        </div>
-        <div class="speed-line">
-          <span class="speed-num">{{ speed }}</span>
-          <span class="speed-unit">km/h</span>
-        </div>
-      </div>
+    <div class="speed-line">{{ speed }} <span class="u">KM/H</span></div>
+
+    <div class="wings">
+      <HudPedalGauge label="THR" :value="throttle" />
+      <HudPedalGauge label="BRK" :value="brake" />
     </div>
 
-    <div v-if="hint && showShiftAdvisor" class="hint">{{ hint }}</div>
-    <div v-else-if="!connected" class="hud-status warn">backend offline</div>
+    <div v-if="!connected" class="hud-status warn">backend offline</div>
     <div v-else-if="!live" class="hud-status dim">awaiting telemetry…</div>
   </div>
 </template>
@@ -73,83 +63,43 @@
   .tpl-classic {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    flex: 1;
-    min-height: 0;
-  }
-
-  .main-row {
-    display: flex;
     align-items: center;
-    gap: 12px;
-    flex: 1;
-  }
-
-  .gear-wrap {
-    flex-shrink: 0;
+    gap: 4px;
+    width: 280px;
   }
 
   .gear {
-    font-size: 64px;
+    font-size: 52px;
     font-weight: 900;
+    font-style: italic;
     line-height: 1;
     letter-spacing: -0.04em;
     min-width: 56px;
     text-align: center;
+    color: #f8fafc;
   }
 
-  .metrics {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .rpm-line,
   .speed-line {
-    display: flex;
-    align-items: baseline;
-    gap: 4px;
-  }
-
-  .rpm-num {
-    font-size: 20px;
-    font-weight: 700;
+    font-size: 18px;
+    font-weight: 800;
+    font-style: italic;
     color: #f8fafc;
+    margin-top: -2px;
   }
 
-  .rpm-unit,
-  .speed-unit {
+  .speed-line .u {
     font-size: 9px;
-    color: #64748b;
-    letter-spacing: 0.1em;
-  }
-
-  .rpm-bar {
-    height: 4px;
-    background: rgba(148, 163, 184, 0.25);
-    border-radius: 2px;
-    overflow: hidden;
-  }
-
-  .rpm-fill {
-    height: 100%;
-    transition:
-      width 75ms linear,
-      background 150ms linear;
-  }
-
-  .speed-num {
-    font-size: 16px;
-    font-weight: 700;
-    color: #f8fafc;
-  }
-
-  .hint {
-    font-size: 10px;
     letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: #38bdf8;
-    text-align: center;
+    font-style: normal;
+    color: #94a3b8;
+    margin-left: 4px;
+  }
+
+  .wings {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    width: 100%;
+    padding: 4px 8px 4px;
   }
 </style>

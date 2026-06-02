@@ -5,6 +5,10 @@
   box-sizing: border-box;
 }
 
+:root {
+  color-scheme: dark;
+}
+
 html,
 body,
 #app {
@@ -15,8 +19,8 @@ body,
   font-family:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
     'Microsoft YaHei', sans-serif;
-  color: #1f2937;
-  background: #f3f5f9;
+  color: #f8fafc;
+  background: #030712;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -43,12 +47,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #334155;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #475569;
 }
 
 ::-webkit-scrollbar-track {

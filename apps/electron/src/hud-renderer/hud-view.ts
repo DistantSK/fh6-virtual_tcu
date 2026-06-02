@@ -3,6 +3,7 @@ import type { TelemetrySnapshot } from '@virtual-tcu/shared/types/telemetry'
 import type { DriveMode } from '@virtual-tcu/shared/types/ws'
 import type { Ref } from 'vue'
 import { normalizeHudTemplate, parseShiftAdvice } from '@virtual-tcu/shared/config/hud'
+import { formatGearLabel } from '@virtual-tcu/shared/utils/format'
 import { computed } from 'vue'
 
 export function parseShiftAdviceFromTelemetry(t: Partial<TelemetrySnapshot>): ShiftAdvice {
@@ -20,21 +21,21 @@ export function useHudView(
   tcuState: Ref<string>,
   clickThrough: Ref<boolean>,
 ) {
-  const gearLabel = computed(() => {
-    const g = telemetry.value.gear
-    if (g === 0) return 'R'
-    if (g === 11) return 'N'
-    return g != null ? String(g) : '-'
-  })
+  const gearLabel = computed(() =>
+    formatGearLabel(telemetry.value.gear, telemetry.value.is_race_on),
+  )
 
   const speed = computed(() => Math.round(telemetry.value.speed_kmh ?? 0))
   const rpm = computed(() => Math.round(telemetry.value.rpm ?? 0))
+  const rpmMax = computed(() => telemetry.value.rpm_max ?? 8000)
   const rpmPct = computed(() => Math.max(0, Math.min(1, telemetry.value.rpm_pct ?? 0)))
-  const hint = computed(() => telemetry.value.shift_hint ?? '')
+  const throttle = computed(() => Math.max(0, Math.min(1, telemetry.value.throttle ?? 0)))
+  const brake = computed(() => Math.max(0, Math.min(1, telemetry.value.brake ?? 0)))
   const shiftAdvice = computed(() => parseShiftAdviceFromTelemetry(telemetry.value))
   const showShiftAdvisor = computed(
     () => mode.value === 'MANUAL' && tcuState.value === 'MANUAL' && !!shiftAdvice.value,
   )
+  const showShiftBanner = computed(() => mode.value === 'MANUAL' && tcuState.value === 'MANUAL')
 
   const modeColor = computed(() => {
     const colors: Record<string, string> = {
@@ -56,7 +57,8 @@ export function useHudView(
   const gearColor = computed(() => {
     if (tcuState.value === 'SHIFTING') return '#a78bfa'
     if (gearLabel.value === 'R') return '#f59e0b'
-    return clickThrough.value ? '#ffffff' : '#f8fafc'
+    if (clickThrough.value) return '#ffffff'
+    return '#f1f5f9'
   })
 
   const gearStyle = computed(() => {
@@ -72,10 +74,13 @@ export function useHudView(
     gearLabel,
     speed,
     rpm,
+    rpmMax,
     rpmPct,
-    hint,
+    throttle,
+    brake,
     shiftAdvice,
     showShiftAdvisor,
+    showShiftBanner,
     modeColor,
     rpmBarColor,
     gearColor,

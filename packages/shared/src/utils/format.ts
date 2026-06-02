@@ -25,6 +25,18 @@ export function gearDisplay(gear: number, labels: { reverse: string; neutral: st
   return String(gear)
 }
 
+/** FH6 gear label for HUD / dashboard (gear 11 = neutral in telemetry). */
+export function formatGearLabel(
+  gear: number | undefined | null,
+  isRaceOn?: boolean | number | null,
+): string {
+  if (!isRaceOn) return 'N'
+  if (gear === 0) return 'R'
+  if (gear === 11) return 'N'
+  if (gear != null && gear > 0) return String(gear)
+  return 'N'
+}
+
 export function configBool(config: ConfigMap, key: string): boolean {
   return !!config[key]
 }

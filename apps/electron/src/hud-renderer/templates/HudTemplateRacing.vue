@@ -1,7 +1,9 @@
 <script setup lang="ts">
   import type { ShiftAdvice } from '@virtual-tcu/shared/config/hud'
-  import ShiftAdvisorArrows from '@virtual-tcu/ui/components/ShiftAdvisorArrows.vue'
   import HudChrome from '../HudChrome.vue'
+  import HudPedalGauge from '../HudPedalGauge.vue'
+  import HudRpmSegments from '../HudRpmSegments.vue'
+  import HudShiftHints from '../HudShiftHints.vue'
 
   defineProps<{
     mode: string
@@ -14,9 +16,11 @@
     gearStyle: Record<string, string>
     speed: number
     rpm: number
+    rpmMax: number
     rpmPct: number
     rpmBarColor: string
-    hint: string
+    throttle: number
+    brake: number
     shiftAdvice: ShiftAdvice
     showShiftAdvisor: boolean
   }>()
@@ -38,29 +42,29 @@
       @close="emit('close')"
     />
 
-    <div class="rpm-arc-wrap">
-      <svg class="rpm-arc" viewBox="0 0 120 64" aria-hidden="true">
-        <path class="arc-bg" d="M 12 56 A 48 48 0 0 1 108 56" fill="none" stroke-width="5" />
-        <path
-          class="arc-fill"
-          d="M 12 56 A 48 48 0 0 1 108 56"
-          fill="none"
-          stroke-width="5"
-          :stroke="rpmBarColor"
-          pathLength="1"
-          :stroke-dasharray="`${rpmPct} 1`"
-        />
-      </svg>
-      <ShiftAdvisorArrows :advice="showShiftAdvisor ? shiftAdvice : ''" size="lg" class="center">
-        <div class="gear" :style="gearStyle">{{ gearLabel }}</div>
-      </ShiftAdvisorArrows>
+    <HudRpmSegments :rpm-pct="rpmPct" :rpm-max="rpmMax" :segments="16" variant="bar8" />
+
+    <div class="dash-row">
+      <div class="col speed-col">
+        <span class="val">{{ speed }}</span>
+        <span class="lbl">KM/H</span>
+      </div>
+
+      <div class="col gear-col">
+        <HudShiftHints :advice="shiftAdvice" :show="showShiftAdvisor" size="lg">
+          <div class="gear" :style="gearStyle">{{ gearLabel }}</div>
+        </HudShiftHints>
+      </div>
+
+      <div class="col pedals-col">
+        <HudPedalGauge label="THR" :value="throttle" compact />
+        <HudPedalGauge label="BRK" :value="brake" compact />
+      </div>
     </div>
 
-    <div class="footer">
-      <span class="rpm-val">{{ rpm }} <span class="u">RPM</span></span>
-      <span class="spd">{{ speed }} <span class="u">KM/H</span></span>
-    </div>
-    <div v-if="showShiftAdvisor && hint" class="hint">{{ hint }}</div>
+    <div v-if="!connected" class="hud-status warn">backend offline</div>
+    <div v-else-if="!live" class="hud-status dim">awaiting telemetry…</div>
+    <div v-else class="status-spacer" aria-hidden="true" />
   </div>
 </template>
 
@@ -68,82 +72,65 @@
   .tpl-racing {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    flex: 1;
-    align-items: stretch;
+    gap: 10px;
+    width: 320px;
   }
 
-  .rpm-arc-wrap {
-    position: relative;
-    flex: 1;
-    display: flex;
+  .dash-row {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    justify-content: center;
-    min-height: 72px;
+    gap: 12px;
+    padding: 4px 2px 0;
   }
 
-  .rpm-arc {
-    position: absolute;
-    width: 100%;
-    max-width: 200px;
-    height: auto;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-  }
-
-  .arc-bg {
-    stroke: rgba(148, 163, 184, 0.25);
-  }
-
-  .arc-fill {
-    transition:
-      stroke-dasharray 75ms linear,
-      stroke 150ms linear;
-  }
-
-  .center {
-    position: relative;
-    z-index: 1;
-  }
-
-  .gear {
-    font-size: 72px;
-    font-weight: 900;
-    line-height: 1;
-    letter-spacing: -0.05em;
-    text-align: center;
-  }
-
-  .footer {
+  .col {
     display: flex;
-    justify-content: space-between;
-    font-weight: 700;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .speed-col {
+    align-items: flex-start;
+  }
+
+  .gear-col {
+    align-items: center;
+  }
+
+  .pedals-col {
+    align-items: flex-end;
+    gap: 6px;
+  }
+
+  .val {
+    font-size: 28px;
+    font-weight: 900;
+    font-style: italic;
+    line-height: 1;
     color: #f8fafc;
-    padding: 0 4px;
+    letter-spacing: -0.02em;
   }
 
-  .rpm-val {
-    font-size: 14px;
-  }
-
-  .spd {
-    font-size: 14px;
-    color: #38bdf8;
-  }
-
-  .u {
+  .lbl {
     font-size: 8px;
-    color: #64748b;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.16em;
+    color: #94a3b8;
+    margin-top: 2px;
     font-weight: 600;
   }
 
-  .hint {
-    font-size: 9px;
+  .gear {
+    font-size: 64px;
+    font-weight: 900;
+    font-style: italic;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    min-width: 72px;
     text-align: center;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: #38bdf8;
+  }
+
+  .status-spacer {
+    min-height: 12px;
   }
 </style>

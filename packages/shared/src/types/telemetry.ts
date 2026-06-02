@@ -35,6 +35,7 @@ export interface SessionStats {
 
 export interface TelemetrySnapshot {
   gear: number
+  is_race_on?: boolean | number
   speed_kmh: number
   rpm: number
   rpm_max: number

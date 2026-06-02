@@ -15,12 +15,16 @@
 
 import { join } from 'node:path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
-import { app, BrowserWindow, ipcMain, Menu, nativeImage, shell, Tray } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, nativeImage, nativeTheme, shell, Tray } from 'electron'
 import { autoUpdater } from 'electron-updater'
 import { BackendLifecycle } from './backend-lifecycle'
 import { openExternalUrl } from './url-policy'
 
 const backendLifecycle = new BackendLifecycle()
+
+/** Matches packages/ui theme (--color-tcu-bg-0 / bodyColor). */
+const SETTINGS_WINDOW_BG = '#030712'
+const SETTINGS_TITLE_SYMBOL = '#f1f5f9'
 
 let settingsWindow: BrowserWindow | null = null
 let hudWindow: BrowserWindow | null = null
@@ -64,8 +68,17 @@ function createSettingsWindow() {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
-    backgroundColor: '#030712',
+    backgroundColor: SETTINGS_WINDOW_BG,
     title: 'Virtual TCU',
+    ...(process.platform === 'win32'
+      ? {
+          titleBarOverlay: {
+            color: SETTINGS_WINDOW_BG,
+            symbolColor: SETTINGS_TITLE_SYMBOL,
+            height: 40,
+          },
+        }
+      : {}),
     webPreferences: {
       preload: join(__dirname, '..', 'preload', 'main.js'),
       sandbox: true,
@@ -157,8 +170,10 @@ function createHudWindow() {
   }
 
   hudWindow = new BrowserWindow({
-    width: 300,
-    height: 152,
+    width: 340,
+    height: 280,
+    minWidth: 240,
+    minHeight: 120,
     x: 24,
     y: 24,
     show: false,
@@ -173,12 +188,15 @@ function createHudWindow() {
     minimizable: false,
     maximizable: false,
     backgroundColor: '#00000000',
+    ...(process.platform === 'win32' ? { thickFrame: false, roundedCorners: false as const } : {}),
     webPreferences: {
       preload: join(__dirname, '..', 'preload', 'hud.js'),
       sandbox: true,
       backgroundThrottling: false,
     },
   })
+
+  hudWindow.setBackgroundColor('#00000000')
 
   hudWindow.setAlwaysOnTop(true, 'screen-saver')
   hudWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
@@ -298,6 +316,16 @@ function registerIpc() {
     hudWindow?.setIgnoreMouseEvents(ignore, { forward: true })
   })
 
+  ipcMain.handle('hud:set-size', (_e, width: unknown, height: unknown) => {
+    if (!hudWindow || hudWindow.isDestroyed()) return
+    const w = Math.round(Number(width))
+    const h = Math.round(Number(height))
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w < 1 || h < 1) return
+    const [curW, curH] = hudWindow.getSize()
+    if (curW === w && curH === h) return
+    hudWindow.setSize(w, h, false)
+  })
+
   ipcMain.handle('app:restart-backend', () => backendLifecycle.restart())
 
   ipcMain.handle('updater:check', async () => {
@@ -387,6 +415,7 @@ if (!gotLock) {
 
   app.whenReady().then(async () => {
     electronApp.setAppUserModelId('com.virtualtcu.app')
+    nativeTheme.themeSource = 'dark'
     app.on('browser-window-created', (_, w) => optimizer.watchWindowShortcuts(w))
 
     registerIpc()

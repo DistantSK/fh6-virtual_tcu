@@ -2,6 +2,7 @@
   import { computed } from 'vue'
   import { HUD_TEMPLATE_COMPONENTS } from './hud-templates'
   import { useHudApp } from './HudApp'
+  import HudShiftBanner from './HudShiftBanner.vue'
   import './hud-shell.css'
 
   const {
@@ -13,7 +14,6 @@
     close,
     toggleClickThrough,
     syncClickThroughMouse,
-    onMouseLeave,
   } = useHudApp()
 
   const activeTemplate = computed(
@@ -22,61 +22,89 @@
 </script>
 
 <template>
-  <div
-    class="hud-root"
-    :class="[shellClass, hudTemplate, { disconnected: !connected, 'click-through': clickThrough }]"
-    @mousemove="syncClickThroughMouse"
-    @mouseleave="onMouseLeave"
-  >
-    <component
-      :is="activeTemplate"
-      v-bind="hudProps"
-      @toggle-click-through="toggleClickThrough"
-      @close="close"
-    />
+  <div class="hud-frame">
+    <div
+      class="hud-root"
+      :class="[
+        shellClass,
+        hudTemplate,
+        { disconnected: !connected, 'click-through': clickThrough },
+      ]"
+      @mousemove="syncClickThroughMouse"
+      @mouseenter="syncClickThroughMouse"
+    >
+      <component
+        :is="activeTemplate"
+        v-bind="hudProps"
+        @toggle-click-through="toggleClickThrough"
+        @close="close"
+      />
+      <HudShiftBanner v-if="hudProps.showShiftBanner" :advice="hudProps.shiftAdvice" show />
+    </div>
   </div>
 </template>
 
 <style scoped>
+  .hud-frame {
+    width: fit-content;
+    height: fit-content;
+    box-sizing: border-box;
+  }
+
   .hud-root {
-    border-radius: 14px;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .hud-root :deep(.global-shift-banner) {
+    margin-top: 0;
+    border-radius: 0 0 11px 11px;
+  }
+
+  .hud-root.tpl-minimal-shell :deep(.global-shift-banner) {
+    border-radius: 0 0 8px 8px;
   }
 
   .hud-root.tpl-classic-shell {
-    background: rgba(248, 250, 252, 0.97);
-    color: #0f172a;
+    --hud-min-width: 280px;
+    --hud-max-width: 320px;
+    background: rgba(0, 0, 0, 0.88);
+    border-color: rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    color: #f8fafc;
   }
 
   .hud-root.tpl-minimal-shell {
-    background: rgba(15, 23, 42, 0.88);
-    border-color: rgba(51, 65, 85, 0.6);
-    color: #f8fafc;
-    padding: 6px 8px;
+    --hud-min-width: 340px;
+    --hud-max-width: 420px;
+    --hud-pad-x: 4px;
+    --hud-pad-y: 4px;
+    background: transparent;
+    border: none;
+    border-radius: 0;
   }
 
   .hud-root.tpl-racing-shell {
-    background: linear-gradient(165deg, rgba(15, 23, 42, 0.94) 0%, rgba(30, 27, 46, 0.92) 100%);
-    border-color: rgba(220, 38, 38, 0.35);
+    --hud-min-width: 320px;
+    --hud-max-width: 400px;
+    --hud-pad-x: 12px;
+    --hud-pad-y: 10px;
+    background: rgba(0, 0, 0, 0.9);
+    border-color: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
     color: #f8fafc;
-    box-shadow:
-      0 0 0 1px rgba(220, 38, 38, 0.15),
-      0 12px 40px rgba(0, 0, 0, 0.45);
-  }
-
-  .hud-root.tpl-glass-shell {
-    background: rgba(15, 23, 42, 0.55);
-    backdrop-filter: blur(18px) saturate(1.2);
-    border-color: rgba(255, 255, 255, 0.12);
-    color: #f8fafc;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
   }
 
   .hud-root.click-through.tpl-classic-shell .gear,
   .hud-root.click-through.tpl-minimal-shell .gear,
-  .hud-root.click-through.tpl-racing-shell .gear {
-    -webkit-text-stroke: 2.5px rgba(0, 0, 0, 0.92);
+  .hud-root.click-through.tpl-racing-shell .gear,
+  .hud-root.click-through .speed,
+  .hud-root.click-through .speed-line,
+  .hud-root.click-through .val {
+    -webkit-text-stroke: 2px rgba(0, 0, 0, 0.9);
     paint-order: stroke fill;
   }
 </style>

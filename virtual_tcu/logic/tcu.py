@@ -285,9 +285,11 @@ class TCULogic:
                     "yaw_transient": False,
                     "peak_power_rpm_pct": None,
                     "peak_torque_rpm_pct": None,
+                    "is_race_on": False,
                 }
             return {
                 "gear": td.gear,
+                "is_race_on": bool(td.is_race_on),
                 "speed_kmh": td.speed_kmh,
                 "rpm": td.current_rpm,
                 "rpm_max": td.engine_max_rpm,
