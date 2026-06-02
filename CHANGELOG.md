@@ -2,10 +2,36 @@
 
 ## [Unreleased]
 
+## [13.2.0] — 2026-06-02
+
+### Added
+
+- **vJoy output mode** — virtual DirectInput shift injection for racing wheels (preserves force feedback); configurable upshift/downshift/clutch buttons and direct-shift vs clutch-assisted paths in Settings.
+- **Shift clutch assist (keyboard)** — optional clutch key press before E/Q shifts with configurable pre/overlap/release timing; Electron Settings and backend-only Web UI expose the controls.
+- **HUD templates** — Classic (arc tach), Racing (segmented RPM bar), and Minimal (LED dot tach); shift advisor arrows, shift banner, pedal gauge, click-through pin/unpin, and per-template minimum window bounds.
+- **HUD dynamic sizing** — `hud:set-size` IPC and content-driven overlay height; legacy `glass` template configs map to Classic.
+- **Backend-only Web UI settings** — standalone zip / `python -m virtual_tcu` dashboard regains the full settings column (vJoy, clutch assist, network, profiles) via shared `packages/ui` components.
+- **pytest suite** — airtime detection and aggressive Race downshift behavior covered by unit tests.
+
+### Changed
+
+- **Drive modes** — removed standalone **DYNAMIC** from the F9 cycle; former Dynamic behavior is folded into **COMFORT** / **RACE** through the drive-style tracker (CRUISE / ADAPTIVE / SPORT regimes, toggle `feat_drive_style`).
+- **Race TCU** — more aggressive downshifts; gear recovery after airtime landings and sporty coast; airtime now detected from vertical acceleration instead of wheel slip, with a global airborne hold.
+- **Monorepo UI** — dashboard settings/HUD strings live in `packages/shared` + `packages/ui`; Electron settings and browser dashboard share the same components.
+- **Locale picker** — improved language selection in settings (Electron + Web).
+
 ### Removed
 
-- **Virtual XInput gamepad output mode** — removed entirely (`GamepadOutput`, `vgamepad`/ViGEmBus dependency, the bundled `driver/ViGEmBusSetup_x64.msi`, the `installViGEmBus`/`check_gamepad` IPC + WebSocket paths, and all gamepad button settings/locales). As a second XInput device it sent a full controller-state packet on every shift, zeroing the player's steering/throttle and making cornering feel laggy/unresponsive; mirroring only the brake (LT) could not fix steering, and the conflict-free alternative (HidHide full passthrough) would add a new real-time latency path and cannot serve force-feedback wheels. Output is now **keyboard** (default) or **vJoy**. Saved configs with `output_mode: "gamepad"` automatically fall back to keyboard.
+- **Virtual XInput gamepad output mode** — removed entirely (`GamepadOutput`, `vgamepad`/ViGEmBus dependency, the bundled `driver/ViGEmBusSetup_x64.msi`, the `installViGEmBus`/`check_gamepad` IPC + WebSocket paths, and all gamepad button settings/locales). As a second XInput device it sent a full controller-state packet on every shift, zeroing the player's steering/throttle and making cornering feel laggy/unresponsive. Output is now **keyboard** (default) or **vJoy**. Saved configs with `output_mode: "gamepad"` automatically fall back to keyboard.
 - **`OutputInterface.set_brake`** — only the virtual gamepad needed the brake mirror; removed from the interface and the TCU loop.
+- **Deprecated vJoy DLL** from the repo; driver must be installed separately.
+
+### Fixed
+
+- **vJoy** — guard misconfigured clutch key; restore button hold timing; backend no longer force-exits when vJoy is configured but unused.
+- **Manual + clutch** — transmission no longer stuck in neutral when using clutch assist with manual TCU mode.
+- **Sporty coast / impacts** — recover target gear after hard landings and coast-down in sport regimes.
+- **HUD** — restore full redesign lost during a lint-staged stash.
 
 ## [13.1.2] — 2026-05-29
 
@@ -78,6 +104,39 @@
 ---
 
 # 更新日志
+
+## [13.2.0] — 2026-06-02
+
+### 新增
+
+- **vJoy 输出模式** — 通过虚拟 DirectInput 设备注入换挡（适合力反馈方向盘）；设置中可配置升/降挡/离合按键及直按换挡 vs 离合辅助路径。
+- **键盘离合辅助** — 可选在 E/Q 换挡前按下离合键，预压/重叠/释放时间可调；Electron 设置与 backend-only Web UI 均提供相关选项。
+- **HUD 模板** — 经典（弧形转速表）、竞技（分段 RPM 条）、极简（LED 点阵转速）；换档提示箭头、换档横幅、踏板条、点击穿透固定/解除，各模板有最小窗口尺寸。
+- **HUD 动态尺寸** — `hud:set-size` IPC，高度随内容伸缩；旧版 `glass` 模板配置自动映射为经典模板。
+- **backend-only Web 完整设置** — 便携 zip / `python -m virtual_tcu` 仪表盘恢复右侧完整设置栏（vJoy、离合辅助、网络、档案等），与 Electron 共用 `packages/ui` 组件。
+- **pytest 测试** — 腾空检测与 Race 模式积极降挡行为有单元测试覆盖。
+
+### 变更
+
+- **驾驶模式** — F9 循环中移除独立 **DYNAMIC**；原动态模式逻辑并入 **COMFORT** / **RACE**，由驾驶风格追踪器在 CRUISE / ADAPTIVE / SPORT 子状态间切换（`feat_drive_style`）。
+- **Race TCU** — 更积极的降挡；腾空落地与运动型滑行后恢复档位；腾空改由垂直加速度检测（不再依赖轮胎滑移），并全局保持腾空锁定。
+- **Monorepo UI** — 设置/HUD 文案与组件迁至 `packages/shared`、`packages/ui`；Electron 设置与浏览器仪表盘共用同一套 UI。
+- **语言选择** — 设置中改进 locale 切换体验。
+
+### 移除
+
+- **虚拟 XInput 手柄输出** — 完全移除（`GamepadOutput`、`vgamepad`/ViGEmBus、内置 `driver/ViGEmBusSetup_x64.msi`、`installViGEmBus`/`check_gamepad` IPC 与 WebSocket 路径及全部手柄相关设置/文案）。作为第二台 XInput 设备会在每次换挡时发送完整手柄状态包，导致转向/油门被清零、弯道手感迟滞。输出现为 **键盘**（默认）或 **vJoy**；已保存的 `output_mode: "gamepad"` 自动回退为键盘。
+- **`OutputInterface.set_brake`** — 仅虚拟手柄需要刹车镜像，已从接口与 TCU 主循环移除。
+- 仓库内**过时的 vJoy DLL**；运行时需自行安装 vJoy 驱动。
+
+### 修复
+
+- **vJoy** — 误配离合键保护；恢复按键保持时序；未使用 vJoy 时后端不再强制退出。
+- **手动 + 离合** — 离合辅助 + 手动 TCU 模式下不再卡在空挡。
+- **运动滑行 / 撞击** — 硬着陆与运动型滑行后恢复目标档位。
+- **HUD** — 修复 lint-staged stash 导致的部分重设计丢失。
+
+---
 
 ## [13.1.2] — 2026-05-29
 

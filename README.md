@@ -37,7 +37,7 @@ An external adaptive transmission controller for *Forza Horizon 6*. It reads rea
 
 | | |
 | :-- | :-- |
-| 🚗 **5 drive modes** | Comfort · Dynamic · Race · Drift · Off-road |
+| 🚗 **4 drive modes + Manual** | Comfort · Race · Drift · Off-road (Comfort/Race adapt via drive-style) |
 | 🧠 **Per-car learning** | Gear ratios, power curve, rev limiter, sport index |
 | 📡 **60 Hz TCU loop** | UDP telemetry in → shift logic → keyboard / vJoy out |
 | 🖥️ **Desktop shell** | Tray app, Settings window, floating HUD, browser dashboard |
@@ -46,7 +46,7 @@ An external adaptive transmission controller for *Forza Horizon 6*. It reads rea
 ```mermaid
 flowchart LR
   FH6["Forza Horizon 6"] -->|"UDP :5555"| TCU["Virtual TCU\n(Python)"]
-  TCU -->|"E/Q or B/X"| FH6
+  TCU -->|"E/Q or vJoy"| FH6
   TCU -->|"WS :8765"| UI["Dashboard / HUD\n(Vue + Electron)"]
 ```
 
@@ -142,7 +142,7 @@ For users who want the original portable layout without Electron, HUD, or auto-u
 ### 2. Extract
 
 ```
-VirtualTCU-Backend-13.0.x-win64/
+VirtualTCU-Backend-13.2.x-win64/
 ├── Launch VirtualTCU.bat    ← optional launcher (recommended)
 └── VirtualTCU/
     ├── VirtualTCU.exe
@@ -309,14 +309,13 @@ Push a `v*` tag to trigger CI, which produces both the Electron installer (`Virt
 
 | Mode | Behavior |
 |------|----------|
-| **COMFORT** | Eco-friendly shifts, early upshifts, cruise efficiency at stable speeds |
-| **DYNAMIC** | Audi-style: higher RPM hold, strict rev-matching downshifts |
-| **RACE** | Track-focused: near-redline upshifts, aggressive engine braking |
+| **COMFORT** | Eco-friendly shifts; with **drive-style** enabled, adapts between cruise efficiency, adaptive hold, and sportier response (replaces the old standalone Dynamic mode) |
+| **RACE** | Track-focused: near-redline upshifts, aggressive downshifts and engine braking; drive-style can push sportier behavior under hard driving |
 | **DRIFT** | Holds RPM in the power band, reduces unwanted downshifts mid-slide |
 | **OFFROAD** | Tuned for low grip and uneven terrain |
 | **MANUAL** | TCU disabled — you shift yourself |
 
-**F9** (global hotkey, works while Forza is in focus) cycles through modes. **F8** toggles logging. Both can be changed in Settings / the Web UI.
+**F9** cycles **Comfort → Race → Drift → Off-road → Manual**. **F8** toggles logging. Both can be changed in Settings / the Web UI.
 
 ---
 
@@ -324,7 +323,7 @@ Push a `v*` tag to trigger CI, which produces both the Electron installer (`Virt
 
 ### 1. Transmission
 
-**Settings → Difficulty → Transmission → MANUAL (No Clutch)**
+**Settings → Difficulty → Transmission → MANUAL (No Clutch)** — enable **clutch assist** in Virtual TCU if you want the TCU to press the clutch key around shifts (keyboard or vJoy).
 
 ### 2. Keyboard shift bindings
 
@@ -358,7 +357,7 @@ Push a `v*` tag to trigger CI, which produces both the Electron installer (`Virt
 |--------|---------|
 | **Settings** | Full configuration — drive modes, sliders, hotkeys, network, stats, shift history, profile import/export, auto-update |
 | **Browser dashboard** | Read-only live view — gear, RPM chart, G-meter, session stats (opened via tray or Settings) |
-| **HUD overlay** | Minimal always-on-top overlay — gear, mode, RPM bar, speed, shift hint; supports click-through |
+| **HUD overlay** | Always-on-top overlay with **Classic / Racing / Minimal** templates — arc or segmented tach, shift arrows, pedal gauge; click-through and pin |
 
 Closing the Settings window hides it; the app keeps running in the tray until you choose **Quit**.
 
