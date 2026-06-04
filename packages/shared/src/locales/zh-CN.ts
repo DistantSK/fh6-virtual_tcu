@@ -242,6 +242,11 @@ export default {
     webPort: 'Web 端口',
     udpPort: '遥测 UDP 端口',
     udpPortHint: 'Forza 设置 → 隐私与在线 → 遥测 → Car Dash 数据输出端口（默认 5555）',
+    udpHubEnabled: '转发遥测给设备',
+    udpHubTargets: 'UDP Hub 目标',
+    udpHubTargetsPlaceholder: '127.0.0.1:5556, 192.168.1.50:5555',
+    udpHubHint:
+      '可选：将 FH6 原始遥测包转发给力反馈手柄或伴随应用。格式为 host:port，多个目标用逗号分隔。',
     networkApply: '确定',
     networkApplyOk: '已生效',
     networkErrors: {

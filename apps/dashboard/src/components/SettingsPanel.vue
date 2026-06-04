@@ -350,6 +350,28 @@
               <NText depth="3" style="font-size: 11px; display: block; margin-top: 8px">
                 {{ $t('extras.udpPortHint') }}
               </NText>
+              <NFlex vertical :size="10" style="margin-top: 12px">
+                <NFlex justify="space-between" align="center" :size="8">
+                  <NText>{{ $t('extras.udpHubEnabled') }}</NText>
+                  <NSwitch
+                    :value="configBool('udp_hub_enabled')"
+                    @update:value="emit('setConfig', 'udp_hub_enabled', $event)"
+                  />
+                </NFlex>
+                <NFlex justify="space-between" align="center" :size="8">
+                  <NText>{{ $t('extras.udpHubTargets') }}</NText>
+                  <NInput
+                    :value="configText('udp_hub_targets')"
+                    :placeholder="$t('extras.udpHubTargetsPlaceholder')"
+                    size="small"
+                    style="width: 220px; font-family: ui-monospace, monospace"
+                    @update:value="emit('setConfig', 'udp_hub_targets', $event)"
+                  />
+                </NFlex>
+              </NFlex>
+              <NText depth="3" style="font-size: 11px; display: block; margin-top: 8px">
+                {{ $t('extras.udpHubHint') }}
+              </NText>
               <NFlex :size="8" align="center" style="margin-top: 12px">
                 <NButton
                   type="primary"

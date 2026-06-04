@@ -83,5 +83,7 @@ DEFAULTS = {
     "web_host": "127.0.0.1",
     "web_port": 8765,
     "udp_port": 5555,
+    "udp_hub_enabled": False,
+    "udp_hub_targets": "",
     "hud_template": "classic",
 }

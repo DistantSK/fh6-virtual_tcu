@@ -245,6 +245,11 @@ export default {
     udpPort: 'Telemetry UDP port',
     udpPortHint:
       'FH6 Settings → Privacy & Online → Telemetry → Car Dash data out port (default 5555)',
+    udpHubEnabled: 'Forward telemetry to devices',
+    udpHubTargets: 'UDP hub targets',
+    udpHubTargetsPlaceholder: '127.0.0.1:5556, 192.168.1.50:5555',
+    udpHubHint:
+      'Optional: forward raw FH6 telemetry packets to force-feedback controllers or companion apps. Use host:port, separated by commas.',
     networkApply: 'Apply',
     networkApplyOk: 'Applied',
     networkErrors: {
