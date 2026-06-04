@@ -22,7 +22,14 @@ import { useUpdater } from './useUpdater'
 export const GITHUB_REPO_URL = 'https://github.com/Forza-Love/fh6-virtual_tcu'
 export { brandIconUrl }
 
-export type SettingsTabKey = 'overview' | 'config' | 'advanced' | 'stats' | 'history' | 'about'
+export type SettingsTabKey =
+  | 'overview'
+  | 'config'
+  | 'advanced'
+  | 'stats'
+  | 'history'
+  | 'logs'
+  | 'about'
 
 export function useSettingsApp() {
   const { t, locale } = useI18n()
@@ -35,6 +42,7 @@ export function useSettingsApp() {
     { key: 'advanced', i18nKey: 'advanced' },
     { key: 'stats', i18nKey: 'stats' },
     { key: 'history', i18nKey: 'history' },
+    { key: 'logs', i18nKey: 'logs' },
     { key: 'about', i18nKey: 'about' },
   ]
 

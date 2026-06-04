@@ -45,6 +45,8 @@ export interface SettingsContext {
     shiftHistory: Ref<Array<Record<string, unknown>>>
     logStatus: Ref<{ recording: boolean; packets: number; size_kb: number } | null>
     packetsTotal: Ref<number>
+    systemLogs: Ref<Array<{ time: number; level: string; msg: string }>>
+    telemetryLogs: Ref<Array<{ time: number; reason: string; filename: string }>>
     webUrls: Ref<{ local?: string; lan?: string; udp_port?: number } | null>
     effectiveOutputMode: Ref<'keyboard' | 'vjoy' | null>
     modal: { open: boolean; title: string; text: string; readOnly: boolean; mode: string }
