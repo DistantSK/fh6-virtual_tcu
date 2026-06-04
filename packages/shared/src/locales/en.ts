@@ -187,6 +187,7 @@ export default {
     transientLock: 'Transient Lock (oversteer)',
     driveStyle: 'Drive Style (adaptive)',
     discordRpc: 'Discord Rich Presence',
+    drivingLog: 'Driving Log (CSV)',
     launchRpm: 'Target RPM',
     comfortUpWot: 'Upshift WOT',
     dynamicUpWot: 'Upshift WOT',

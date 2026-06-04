@@ -63,6 +63,7 @@ DEFAULTS = {
     "feat_landing_recovery": True,
     "feat_transient_lock": True,
     "feat_drive_style": True,
+    "feat_driving_log": False,
     "hotkey_cycle_mode": "f9",
     "hotkey_toggle_log": "f8",
     "vjoy_direct_shift": True,

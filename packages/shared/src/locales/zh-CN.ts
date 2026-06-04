@@ -185,6 +185,7 @@ export default {
     transientLock: '横摆瞬态锁定',
     driveStyle: '驾驶风格（自适应）',
     discordRpc: 'Discord 状态',
+    drivingLog: '行车日志 (CSV)',
     launchRpm: '目标转速',
     comfortUpWot: '全油门升档',
     dynamicUpWot: '全油门升档',

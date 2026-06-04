@@ -18,6 +18,7 @@ export const FEATURE_TOGGLES: FeatureToggle[] = [
   { key: 'feat_transient_lock', i18nKey: 'transientLock' },
   { key: 'feat_drive_style', i18nKey: 'driveStyle' },
   { key: 'feat_discord_rpc', i18nKey: 'discordRpc' },
+  { key: 'feat_driving_log', i18nKey: 'drivingLog' },
 ]
 
 export interface SliderDef {
