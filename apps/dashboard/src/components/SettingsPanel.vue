@@ -8,6 +8,7 @@
   } from '@/types/telemetry'
   import type { ConfigMap, SystemLog, TelemetryLog } from '@/types/ws'
   import { HUD_TEMPLATES } from '@virtual-tcu/shared/config/hud'
+  import UdpHubTargetsField from '@virtual-tcu/ui/settings/UdpHubTargetsField.vue'
   import {
     NButton,
     NCard,
@@ -37,7 +38,13 @@
   } from '@/config/settings'
   import { useNetworkSettings } from './network-settings'
 
-  import { sliderUnit, TAB_IDS, useConfirmReset, useSettingsPanel } from './settings-panel'
+  import {
+    sliderUnit,
+    TAB_IDS,
+    useConfirmReset,
+    useNetworkSaveAction,
+    useSettingsPanel,
+  } from './settings-panel'
 
   const props = withDefaults(
     defineProps<{
@@ -68,7 +75,7 @@
   )
   const emit = defineEmits([
     'setConfig',
-    'applyNetwork',
+    'saveNetworkAndRestart',
     'resetConfig',
     'exportProfile',
     'openImport',
@@ -108,15 +115,21 @@
     draftHost: networkDraftHost,
     draftWebPort: networkDraftWebPort,
     draftUdpPort: networkDraftUdpPort,
+    draftUdpHubEnabled: networkDraftUdpHubEnabled,
+    draftUdpHubTargetTags: networkDraftUdpHubTargetTags,
+    udpHubTagError: networkUdpHubTagError,
     dirty: networkDirty,
     applyError: networkApplyError,
+    allowsBindHostInput: allowsNetworkBindHostInput,
+    allowsPortInput: allowsNetworkPortInput,
+    allowsUdpHubTargetInput: allowsNetworkUdpHubTargetInput,
+    setUdpHubEnabled: setNetworkUdpHubEnabled,
+    setUdpHubTargetTags: setNetworkUdpHubTargetTags,
+    onCreateUdpHubTag: onNetworkUdpHubTagCreate,
     validate: validateNetwork,
   } = useNetworkSettings(() => config.value)
 
-  function applyNetworkSettings() {
-    const parsed = validateNetwork()
-    if (parsed) emit('applyNetwork', parsed.host, parsed.webPort, parsed.udpPort)
-  }
+  const { saveNetworkAndRestart } = useNetworkSaveAction(validateNetwork, emit)
 
   const { confirmReset } = useConfirmReset(() => emit('resetConfig'))
 
@@ -576,6 +589,7 @@
                     v-model:value="networkDraftHost"
                     placeholder="0.0.0.0"
                     maxlength="15"
+                    :allow-input="allowsNetworkBindHostInput"
                     size="small"
                     style="width: 120px; font-family: ui-monospace, monospace"
                   />
@@ -586,6 +600,7 @@
                     v-model:value="networkDraftWebPort"
                     placeholder="8765"
                     maxlength="5"
+                    :allow-input="allowsNetworkPortInput"
                     size="small"
                     style="width: 120px; font-family: ui-monospace, monospace"
                   />
@@ -596,6 +611,7 @@
                     v-model:value="networkDraftUdpPort"
                     placeholder="5555"
                     maxlength="5"
+                    :allow-input="allowsNetworkPortInput"
                     size="small"
                     style="width: 120px; font-family: ui-monospace, monospace"
                   />
@@ -604,14 +620,28 @@
               <NText depth="3" style="font-size: 11px; display: block; margin-top: 8px">
                 {{ $t('extras.udpPortHint') }}
               </NText>
+              <UdpHubTargetsField
+                style="margin-top: 12px"
+                :enabled="networkDraftUdpHubEnabled"
+                :tags="networkDraftUdpHubTargetTags"
+                :tag-error="networkUdpHubTagError"
+                :allows-input="allowsNetworkUdpHubTargetInput"
+                :on-create-tag="onNetworkUdpHubTagCreate"
+                :enabled-label="$t('extras.udpHubEnabled')"
+                :targets-label="$t('extras.udpHubTargets')"
+                :placeholder="$t('extras.udpHubTargetsPlaceholder')"
+                :hint="$t('extras.udpHubHint')"
+                @update:enabled="setNetworkUdpHubEnabled"
+                @update:tags="setNetworkUdpHubTargetTags"
+              />
               <NFlex :size="8" align="center" style="margin-top: 12px">
                 <NButton
                   type="primary"
                   size="small"
                   :disabled="!networkDirty"
-                  @click="applyNetworkSettings"
+                  @click="saveNetworkAndRestart"
                 >
-                  {{ $t('extras.networkApply') }}
+                  {{ $t('extras.saveAndRestart') }}
                 </NButton>
                 <NText v-if="networkApplyError" depth="3" style="font-size: 12px; color: #dc2626">
                   {{ $t(`extras.networkErrors.${networkApplyError}`) }}

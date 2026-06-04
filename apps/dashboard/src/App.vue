@@ -28,7 +28,7 @@
     modal,
     onSetMode,
     onSetConfig,
-    onApplyNetwork,
+    onSaveNetworkAndRestart,
     onResetConfig,
     onRestartBackend,
     onLogStart,
@@ -66,7 +66,7 @@
         :system-logs="systemLogs"
         :telemetry-logs="telemetryLogs"
         @set-config="onSetConfig"
-        @apply-network="onApplyNetwork"
+        @save-network-and-restart="onSaveNetworkAndRestart"
         @reset-config="onResetConfig"
         @restart-backend="onRestartBackend"
         @log-start="onLogStart"

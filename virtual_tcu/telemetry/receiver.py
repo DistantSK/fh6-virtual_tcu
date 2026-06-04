@@ -7,6 +7,7 @@ from virtual_tcu.config.constants import Cfg
 from virtual_tcu.telemetry.logger import TelemetryLogger
 from virtual_tcu.telemetry.model import Telemetry
 from virtual_tcu.telemetry.parser import parse_fh6_packet
+from virtual_tcu.telemetry.udp_hub import UdpTelemetryHub
 
 
 class TelemetryReceiver:
@@ -20,6 +21,7 @@ class TelemetryReceiver:
         self._logger = logger
         self.on_packet = on_packet
         self._config = config
+        self._udp_hub = UdpTelemetryHub(config)
         self.packets_total = 0
         self.last_recv_time = 0.0
         self.error_msg = ""
@@ -73,6 +75,7 @@ class TelemetryReceiver:
             except Exception:
                 pass
             self._sock = None
+        self._udp_hub.close()
 
     def _loop(self):
         while self._running.is_set():
@@ -96,6 +99,7 @@ class TelemetryReceiver:
                         self._latest_raw = raw
 
                     self._logger.write_packet(raw)
+                    self._udp_hub.forward(raw, self._bound_port)
                     if self.on_packet:
                         self.on_packet(td, raw)
 

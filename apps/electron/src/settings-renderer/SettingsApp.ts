@@ -141,7 +141,13 @@ export function useSettingsApp() {
     networkApplying.value = true
     network.applyOk.value = false
     network.applyError.value = ''
-    store.applyNetwork(parsed.host, parsed.webPort, parsed.udpPort)
+    store.saveNetworkAndRestart(
+      parsed.host,
+      parsed.webPort,
+      parsed.udpPort,
+      parsed.udpHubEnabled,
+      parsed.udpHubTargets,
+    )
     // Failsafe: if backend never responds (e.g. WS dropped without reconnect),
     // surface a generic failure after 6s so the button doesn't spin forever.
     clearApplyTimeout()
@@ -235,10 +241,19 @@ export function useSettingsApp() {
     networkDraftHost: network.draftHost,
     networkDraftWebPort: network.draftWebPort,
     networkDraftUdpPort: network.draftUdpPort,
+    networkDraftUdpHubEnabled: network.draftUdpHubEnabled,
+    networkDraftUdpHubTargetTags: network.draftUdpHubTargetTags,
+    networkUdpHubTagError: network.udpHubTagError,
     networkDirty: network.dirty,
     networkApplyError: network.applyError,
     networkApplyOk: network.applyOk,
     networkApplying,
+    allowsNetworkBindHostInput: network.allowsBindHostInput,
+    allowsNetworkPortInput: network.allowsPortInput,
+    allowsNetworkUdpHubTargetInput: network.allowsUdpHubTargetInput,
+    setNetworkUdpHubEnabled: network.setUdpHubEnabled,
+    setNetworkUdpHubTargetTags: network.setUdpHubTargetTags,
+    onNetworkUdpHubTagCreate: network.onCreateUdpHubTag,
     applyNetworkSettings,
     settingsSliders,
     advancedSliders,

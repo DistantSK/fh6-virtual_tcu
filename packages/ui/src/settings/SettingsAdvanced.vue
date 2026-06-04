@@ -19,6 +19,7 @@
   } from 'naive-ui'
   import { computed, inject } from 'vue'
   import { settingsContextKey } from './context'
+  import UdpHubTargetsField from './UdpHubTargetsField.vue'
 
   const ctx = inject(settingsContextKey)!
   const {
@@ -31,10 +32,19 @@
     networkDraftHost,
     networkDraftWebPort,
     networkDraftUdpPort,
+    networkDraftUdpHubEnabled,
+    networkDraftUdpHubTargetTags,
+    networkUdpHubTagError,
     networkDirty,
     networkApplyError,
     networkApplyOk,
     networkApplying,
+    allowsNetworkBindHostInput,
+    allowsNetworkPortInput,
+    allowsNetworkUdpHubTargetInput,
+    setNetworkUdpHubEnabled,
+    setNetworkUdpHubTargetTags,
+    onNetworkUdpHubTagCreate,
     applyNetworkSettings,
     onExportProfile,
     onOpenImport,
@@ -44,21 +54,6 @@
     configText,
     sliderUnit,
   } = ctx
-
-  function applyAndRestart() {
-    // Save network config keys individually via set_config so they are
-    // written to tcu_config.json synchronously before the backend is
-    // killed.  This avoids the race where set_network's async listener
-    // restart is interrupted by the process kill.
-    const host = networkDraftHost.value
-    const webPort = networkDraftWebPort.value
-    const udpPort = networkDraftUdpPort.value
-    if (host) store.setConfig('web_host', host)
-    if (webPort) store.setConfig('web_port', Number(webPort))
-    if (udpPort) store.setConfig('udp_port', Number(udpPort))
-    // Brief delay so the WS messages reach the backend and flush to disk.
-    setTimeout(() => restartBackend(), 600)
-  }
 
   const outputModeValue = computed(() => {
     const v = (store.config as Record<string, unknown>).output_mode
@@ -91,6 +86,7 @@
               v-model:value="networkDraftHost"
               placeholder="0.0.0.0"
               maxlength="15"
+              :allow-input="allowsNetworkBindHostInput"
               size="small"
               style="width: 120px; font-family: ui-monospace, monospace"
             />
@@ -103,6 +99,7 @@
               v-model:value="networkDraftWebPort"
               placeholder="8765"
               maxlength="5"
+              :allow-input="allowsNetworkPortInput"
               size="small"
               style="width: 120px; font-family: ui-monospace, monospace"
             />
@@ -115,6 +112,7 @@
               v-model:value="networkDraftUdpPort"
               placeholder="5555"
               maxlength="5"
+              :allow-input="allowsNetworkPortInput"
               size="small"
               style="width: 120px; font-family: ui-monospace, monospace"
             />
@@ -124,6 +122,20 @@
       <NText depth="3" style="font-size: 11px; display: block; margin-top: 8px">
         {{ t('extras.udpPortHint') }}
       </NText>
+      <UdpHubTargetsField
+        style="margin-top: 12px"
+        :enabled="networkDraftUdpHubEnabled"
+        :tags="networkDraftUdpHubTargetTags"
+        :tag-error="networkUdpHubTagError"
+        :allows-input="allowsNetworkUdpHubTargetInput"
+        :on-create-tag="onNetworkUdpHubTagCreate"
+        :enabled-label="t('extras.udpHubEnabled')"
+        :targets-label="t('extras.udpHubTargets')"
+        :placeholder="t('extras.udpHubTargetsPlaceholder')"
+        :hint="t('extras.udpHubHint')"
+        @update:enabled="setNetworkUdpHubEnabled"
+        @update:tags="setNetworkUdpHubTargetTags"
+      />
       <NFlex :size="8" align="center" style="margin-top: 12px">
         <NButton
           type="primary"
@@ -132,7 +144,7 @@
           :loading="networkApplying"
           @click="applyNetworkSettings"
         >
-          {{ t('extras.networkApply') }}
+          {{ t('extras.saveAndRestart') }}
         </NButton>
         <NText v-if="networkApplyOk" depth="3" style="font-size: 12px; color: #16a34a">
           {{ t('extras.networkApplyOk') }}
@@ -140,15 +152,6 @@
         <NText v-else-if="networkApplyError" depth="3" style="font-size: 12px; color: #dc2626">
           {{ t(`extras.networkErrors.${networkApplyError}`) }}
         </NText>
-        <NButton
-          v-if="networkDirty"
-          type="warning"
-          size="small"
-          style="margin-left: 8px"
-          @click="applyAndRestart()"
-        >
-          {{ t('extras.saveAndRestart') }}
-        </NButton>
       </NFlex>
     </NCard>
 

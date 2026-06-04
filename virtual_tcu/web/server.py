@@ -1,11 +1,10 @@
 import asyncio
 import json
-import os
-import sys
 import time
 from pathlib import Path
 
 from virtual_tcu import paths
+from virtual_tcu.bootstrap import exec_restart
 from virtual_tcu.config.constants import DEFAULTS
 from virtual_tcu.config.store import ConfigStore
 from virtual_tcu.config.web_bind import (
@@ -20,6 +19,7 @@ from virtual_tcu.logic.tcu import TCULogic
 from virtual_tcu.telemetry.log_capture import log_capture
 from virtual_tcu.telemetry.logger import TelemetryLogger
 from virtual_tcu.telemetry.receiver import TelemetryReceiver
+from virtual_tcu.telemetry.udp_hub import parse_udp_hub_targets
 
 _NO_UI_HTML = """<!DOCTYPE html>
 <html lang="en">
@@ -140,6 +140,8 @@ class WebServer:
                 await self._broadcast_json({"type": "config_update", "data": {"hud_template": val}})
         elif t == "set_network":
             await self._apply_network(msg)
+        elif t == "save_network_and_restart":
+            await self._save_network_and_restart(msg, ws)
         elif t == "set_web_bind":
             msg = {
                 "web_host": msg.get("host", ""),
@@ -224,7 +226,7 @@ class WebServer:
             await ws.send_json({"type": "restart_ack"})
             # Small delay so the WS frame is flushed before execv.
             await asyncio.sleep(0.1)
-            os.execv(sys.executable, [sys.executable] + sys.argv)
+            exec_restart()
 
         elif t == "import_profile":
             try:
@@ -251,6 +253,65 @@ class WebServer:
                     )
             except Exception as e:
                 await ws.send_json({"type": "profile_imported", "ok": False, "error": str(e)})
+
+    def _hub_config_from_msg(self, msg: dict, udp_port: int) -> tuple[bool, str, str]:
+        hub_enabled = bool(msg.get("udp_hub_enabled", self._config.get("udp_hub_enabled", False)))
+        hub_targets = str(
+            msg.get("udp_hub_targets", self._config.get("udp_hub_targets", ""))
+        ).strip()
+        if hub_enabled and not hub_targets:
+            return hub_enabled, hub_targets, "invalid_udp_hub_targets"
+        if hub_enabled or hub_targets:
+            try:
+                parse_udp_hub_targets(hub_targets, udp_port)
+            except ValueError:
+                return hub_enabled, hub_targets, "invalid_udp_hub_targets"
+        return hub_enabled, hub_targets, ""
+
+    async def _save_network_and_restart(self, msg: dict, ws):
+        host = msg.get("web_host", "")
+        web_port = msg.get("web_port", 8765)
+        udp_port = msg.get("udp_port", 5555)
+        old_config = dict(self._config.data)
+        ok, err = self._config.set_network(host, web_port, udp_port)
+        if not ok:
+            await ws.send_json(
+                {
+                    "type": "network_changed",
+                    "ok": False,
+                    "error": err,
+                    "data": network_status(self._config),
+                }
+            )
+            return
+
+        udp_port_int = int(self._config.get("udp_port", 5555))
+        hub_enabled, hub_targets, hub_err = self._hub_config_from_msg(msg, udp_port_int)
+        if hub_err:
+            self._config.data = old_config
+            self._config.save()
+            await ws.send_json(
+                {
+                    "type": "network_changed",
+                    "ok": False,
+                    "error": hub_err,
+                    "data": network_status(self._config),
+                }
+            )
+            return
+
+        self._config.set("udp_hub_enabled", hub_enabled)
+        self._config.set("udp_hub_targets", hub_targets)
+        await ws.send_json(
+            {
+                "type": "network_changed",
+                "ok": True,
+                "data": network_status(self._config),
+            }
+        )
+        await ws.send_json({"type": "restart_ack"})
+        await asyncio.sleep(0.1)
+        exec_restart()
 
     async def _apply_network(self, msg: dict):
         host = msg.get("web_host", "")
