@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+## [13.2.1] — 2026-06-06
+
+### Added
+
+- **UDP Telemetry Hub** — forward raw FH6 UDP packets to one or more `host:port` targets from the network settings panel; duplicate-target and feedback-loop validation, with server-side target parsing before save.
+- **Logs tab** — Electron Settings and the Web dashboard share a unified recording console: xterm live system output, optional parsed telemetry stream, replay logger start/stop, fusion snapshot actions, and an output-format picker (`bin.gz`, `csv`, `json`, `jsonl`, `summary`, `chart.html`).
+- **Fusion Snapshot Logger** — ring-buffer flight recorder (~3 s) fuses telemetry and TCU state; dumps CSV (optional self-contained `chart.html`) on auto/manual shifts, redline anomalies, F8, or from the Logs tab; broadcasts `fusion_snapshot` over WebSocket.
+- **Replay export pipeline** — recording stop converts to the selected format inline; CSV auto-splits into roaming vs `raceN` files by `is_race_on`; `format_paths` merges multiple replay inputs; `scripts/plot_snapshot.py` for offline chart rendering.
+- **Electron update modal** — `UpdateAvailableModal` shows release notes, in-app download progress, GitHub fallback, and restart-to-install; tray menu labels follow system locale (EN / zh-CN).
+- **pytest coverage** — upshift pending, per-tune profile keys, gear-ratio engine-brake rejection, UDP hub forwarding/validation, and backend restart argv.
+
+### Changed
+
+- **Per-car profile key** — profiles keyed by `(car_ordinal, car_class, pi, tune_id)` where `tune_id` comes from engine/drivetrain signature and ratio-drift slot splitting; legacy three-part keys still load.
+- **Gear ratio learning** — reject engine-braking, overrun, and gear-order-invalid samples for cleaner ratio calibration.
+- **Network settings** — unified Apply flow saves web host/port, UDP port, and UDP Hub targets together via the `set_network` WebSocket message.
+
+### Fixed
+
+- **Upshift spam / stuck top gear** — pending upshift window blocks repeat E presses until the game confirms the shift; failed upshift caps the learned top gear for that tune (#48, #50).
+- **Tune swap profile reuse** — switching to a different tune with the same PI no longer reuses stale gear ratios that blocked upshifts (#49).
+- **Backend restart from dev** — `exec_restart()` now re-invokes `python -m virtual_tcu` instead of `virtual_tcu/__main__.py`, fixing broken imports after network-settings restart.
+
 ## [13.2.0] — 2026-06-02
 
 ### Added
@@ -104,6 +127,29 @@
 ---
 
 # 更新日志
+
+## [13.2.1] — 2026-06-06
+
+### 新增
+
+- **UDP 遥测转发（UDP Hub）** — 将原始 FH6 UDP 数据包转发到一个或多个 `host:port` 目标；网络设置中可配置，保存前校验重复目标与回环端口，服务端解析目标列表。
+- **日志（Logs）标签页** — Electron 设置与 Web 仪表盘共用统一录制控制台：xterm 实时系统输出、可选解析遥测流、回放录制启停、融合快照操作，以及输出格式选择（`bin.gz`、`csv`、`json`、`jsonl`、`summary`、`chart.html`）。
+- **融合快照记录器（Fusion Snapshot Logger）** — 环形缓冲（约 3 秒）融合遥测与 TCU 状态；自动/手动换挡、红线异常、F8 或日志页触发时导出 CSV（可选自包含 `chart.html`）；经 WebSocket 广播 `fusion_snapshot`。
+- **回放导出管线** — 停止录制时按所选格式内联转换；CSV 按 `is_race_on` 自动拆分为 roaming / `raceN` 文件；`format_paths` 支持合并多个回放输入；新增 `scripts/plot_snapshot.py` 离线绘图脚本。
+- **Electron 更新弹窗** — `UpdateAvailableModal` 展示发行说明、应用内下载进度、GitHub 备用下载与重启安装；托盘菜单文案随系统语言切换（中/英）。
+- **pytest 测试** — 升挡 pending、分调教档案键、齿轮比发动机制动样本过滤、UDP Hub 转发/校验、后端重启 argv。
+
+### 变更
+
+- **车辆档案键** — 档案按 `(car_ordinal, car_class, pi, tune_id)` 存储；`tune_id` 由发动机/传动系统签名与齿轮比漂移分槽决定；仍兼容旧版三段键。
+- **齿轮比学习** — 忽略发动机制动、滑行拖转及档位顺序无效样本，校准更稳定。
+- **网络设置** — 统一「应用」流程，经 `set_network` 一次性保存 Web 主机/端口、UDP 端口与 UDP Hub 目标。
+
+### 修复
+
+- **升挡连发 / 顶档卡住** — pending 升挡窗口内禁止重复按 E，直至游戏确认换挡；升挡失败时对该调教封顶最高可用档位（#48、#50）。
+- **换调教档案复用** — 同 PI 换不同调教时不再误用过期齿轮比导致升不了档（#49）。
+- **开发环境后端重启** — `exec_restart()` 改为 `python -m virtual_tcu` 重新拉起，避免网络设置重启后因 `__main__.py` 路径导致 import 失败。
 
 ## [13.2.0] — 2026-06-02
 
