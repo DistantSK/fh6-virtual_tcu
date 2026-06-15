@@ -44,6 +44,14 @@ class Telemetry:
     slip_fr: float = 0.0
     slip_rl: float = 0.0
     slip_rr: float = 0.0
+    slip_angle_fl: float = 0.0
+    slip_angle_fr: float = 0.0
+    slip_angle_rl: float = 0.0
+    slip_angle_rr: float = 0.0
+    combined_slip_fl: float = 0.0
+    combined_slip_fr: float = 0.0
+    combined_slip_rl: float = 0.0
+    combined_slip_rr: float = 0.0
     is_shifting: bool = False
     # Set by TCULogic — selects the active profile tune slot for this session.
     profile_tune_id: int = 0
