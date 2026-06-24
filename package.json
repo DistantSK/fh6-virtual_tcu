@@ -1,7 +1,7 @@
 {
   "name": "virtual-tcu-monorepo",
   "type": "module",
-  "version": "13.2.2",
+  "version": "13.8.0",
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "engines": {
@@ -41,7 +41,12 @@
     "overrides": {
       "@electron-toolkit/utils>electron": "42.2.0",
       "vite": "^7.3.2"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "electron",
+      "electron-winstaller",
+      "esbuild"
+    ]
   },
   "lint-staged": {
     "*.{ts,vue,js,cjs,mts,cts}": [

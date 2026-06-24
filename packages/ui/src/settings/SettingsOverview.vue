@@ -8,6 +8,43 @@
   const ctx = inject(settingsContextKey)!
   const { t, store, driveModes, dashboardUrl, lanUrl, udpPort, openDashboard, toggleHud } = ctx
 
+  function relearnMessage(): string | null {
+    const s = store.telemetry.value?.relearn_status
+    if (!s) return null
+    if (s === 'learned') {
+      const rpm = Math.round(Number(store.telemetry.value?.relearn_status_rpm ?? 0))
+      return t('calibration.relearnLearned', { rpm })
+    }
+    if (s === 'aborted_moved') return t('calibration.relearnAbortedMoved')
+    if (s === 'timeout') return t('calibration.relearnTimeout')
+    return t('calibration.relearnSkipped')
+  }
+  function crossoverState(): 'learning' | 'learned' | 'relearning' {
+    const tel = store.telemetry.value
+    if (tel?.crossover_relearning) return 'relearning'
+    if (tel?.crossover_learned) return 'learned'
+    return 'learning'
+  }
+  function crossoverTagType(): 'success' | 'warning' | 'info' {
+    const s = store.telemetry.value?.relearn_status
+    if (s) return s === 'learned' ? 'success' : 'warning'
+    const st = crossoverState()
+    return st === 'relearning' ? 'info' : st === 'learned' ? 'success' : 'warning'
+  }
+  function crossoverLabel(): string {
+    const msg = relearnMessage()
+    if (msg) return msg
+    const s = crossoverState()
+    if (s === 'relearning') return t('calibration.crossoverRelearning')
+    if (s === 'learned') return t('calibration.crossoverLearned')
+    const tel = store.telemetry.value
+    const total = Number(tel?.learn_target_gears ?? 0)
+    const done = Number(tel?.learn_mature_gears ?? 0)
+    return total > 0
+      ? t('calibration.crossoverProgress', { done, total })
+      : t('calibration.crossoverLearning')
+  }
+
   function modeColor(id: string) {
     return (
       (
@@ -151,6 +188,13 @@
           <NText depth="3" style="font-size: 12px">
             {{ t('calibration.hint') }}
           </NText>
+        </NFlex>
+        <NDivider style="margin: 12px 0" />
+        <NFlex align="center" justify="space-between" :size="12">
+          <NText style="font-size: 12px">{{ t('calibration.crossover') }}</NText>
+          <NTag :type="crossoverTagType()" :bordered="false" round size="small">
+            {{ crossoverLabel() }}
+          </NTag>
         </NFlex>
       </NCard>
     </NGridItem>

@@ -18,6 +18,10 @@ def restart_argv() -> list[str]:
     extra = sys.argv[1:]
     if getattr(sys, "frozen", False):
         return [sys.executable, *extra]
+    # argv may already carry an explicit "-m virtual_tcu" (a launcher wrapper or
+    # a prior re-exec). Keep it verbatim instead of prepending a second "-m".
+    if extra[:2] == ["-m", "virtual_tcu"]:
+        return [sys.executable, *extra]
     return [sys.executable, "-m", "virtual_tcu", *extra]
 
 

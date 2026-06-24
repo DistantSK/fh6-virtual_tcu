@@ -1,6 +1,8 @@
 import time
 from concurrent.futures import ThreadPoolExecutor
 
+import keyboard
+
 from virtual_tcu.config.store import ConfigStore
 from virtual_tcu.input.interface import OutputInterface
 
@@ -51,6 +53,7 @@ class VJoyOutput(OutputInterface):
         self._v_device.reset()
         self._v_device.reset_buttons()
         self._v_device.update()
+        self._blip: dict | None = None
 
     @property
     def key_up(self) -> str:
@@ -104,6 +107,49 @@ class VJoyOutput(OutputInterface):
         self._v_device.reset_buttons()
         self._v_device.update()
         self._executor.shutdown(wait=False)
+
+    # -- relearn fuel-cut blip -------------------------------------------------
+
+    def relearn_blip_supported(self) -> bool:
+        return True
+
+    def begin_relearn_blip(self, throttle_key: str, clutch_key: str) -> None:
+        """Free-rev to the fuel cut for the F7 relearn. Throttle is always a
+        keyboard key (the vJoy device carries shift buttons, not the pedal);
+        the clutch uses the vJoy clutch button when ``vjoy_use_clutch`` is on,
+        otherwise the keyboard clutch key. If the player drives throttle on a
+        wheel pedal, the blip simply times out — no harm, no movement."""
+        tk = (throttle_key or "w").lower()
+        state: dict = {"tk": tk, "ck": None, "vjoy_clutch": None}
+        try:
+            if self.use_clutch:
+                cb = _BUTTON_MAP.get(self.key_clutch)
+                if cb is not None:
+                    self._v_device.set_button(cb, 1)
+                    state["vjoy_clutch"] = cb
+            else:
+                ck = (clutch_key or "shift").lower()
+                keyboard.press(ck)
+                state["ck"] = ck
+            time.sleep(0.03)
+            keyboard.press(tk)
+        except Exception as e:
+            print(f"[VJoy] relearn blip press failed: {e}")
+        self._blip = state
+
+    def end_relearn_blip(self) -> None:
+        b = self._blip or {}
+        try:
+            if b.get("tk"):
+                keyboard.release(b["tk"])
+            if b.get("ck"):
+                keyboard.release(b["ck"])
+            if b.get("vjoy_clutch") is not None:
+                self._v_device.set_button(b["vjoy_clutch"], 0)
+        except Exception as e:
+            print(f"[VJoy] relearn blip release failed: {e}")
+        finally:
+            self._blip = None
 
     # -- internals -------------------------------------------------------------
 

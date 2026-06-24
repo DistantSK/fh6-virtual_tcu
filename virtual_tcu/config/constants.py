@@ -21,6 +21,33 @@ class Cfg:
     ANTI_STALL_RPM = 1100
     MIN_SPEED_KMH = 12.0
     OVER_REV_LIMIT = 1.02
+    # Tractive-force crossover upshift. When the per-car ratio + torque curve
+    # are warm enough, the optimal upshift point is found by force crossover
+    # (see PowerCurveDetector.crossover_upshift_ok) instead of a fixed rpm%.
+    # The configured WOT rpm% then acts as an *early floor*: crossover may push
+    # the realised point later (toward the limiter) but never earlier than this.
+    #
+    # NOTE: this band used to be 0.06, which let the floor sit *below* peak
+    # power (target_pct - 0.06 == peak-power% - 3%), so the model could shift
+    # before peak power on every gear. The max-acceleration crossover is at or
+    # above peak power, so the floor must not undercut it. 0.0 pins the floor at
+    # the per-mode WOT target (peak-power% + offset), matching the upstream
+    # T-GT II behaviour (floor == peak-power rpm + margin). For peaky engines
+    # whose true crossover is below the floor, the crossover test is still the
+    # binding constraint, so this only removes premature sub-peak-power shifts.
+    CROSSOVER_EARLY_BAND = 0.0
+    # The crossover test is only trusted once the engine has actually been
+    # revved this close to the limiter on the current car. Below it the torque
+    # parabola is dominated by mid-range samples and fabricates a high-rpm
+    # roll-off, which makes the force crossover fire early; that early shift
+    # then starves the model of the very high-rpm samples that would correct it
+    # (a self-reinforcing loop). Holding the upshift toward this rpm during the
+    # learning phase harvests the top-end samples and breaks the loop, after
+    # which the crossover takes over. See PowerCurveDetector.is_crossover_mature.
+    CROSSOVER_MATURE_MAX_R = 0.93
+    # Hard late ceiling: take the shift here regardless of the crossover test,
+    # so a wide-ratio gear never floats the limiter waiting for crossover.
+    UPSHIFT_LIMITER_CEIL = 0.99
     IMPACT_DECEL_KMH = 25.0  # single-frame speed collapse this large = a crash/impact
     REVERSE_HOLD_MS = 700
     REVERSE_EXIT_MS = 500
@@ -65,6 +92,7 @@ DEFAULTS = {
     "feat_sound_beep": False,
     "feat_discord_rpc": False,
     "feat_power_curve": True,
+    "feat_crossover_upshift": True,
     "feat_engine_brake": True,
     "feat_turbo_compensate": True,
     "feat_airtime_lock": True,
@@ -75,6 +103,8 @@ DEFAULTS = {
     "log_output_format": "bin.gz",
     "hotkey_cycle_mode": "f9",
     "hotkey_snapshot": "f8",
+    "hotkey_crossover_relearn": "f7",
+    "hotkey_toggle_clutch": "f10",
     "vjoy_direct_shift": True,
     "vjoy_use_clutch": False,
     "vjoy_shift_key_up": "B13",
@@ -86,9 +116,15 @@ DEFAULTS = {
     # Clutch assist (keyboard only; vjoy uses vjoy_use_clutch)
     "feat_clutch_assist": False,
     "clutch_key": "shift",  # keyboard clutch key (FH6 = shift)
+    "throttle_key": "w",  # keyboard throttle key (FH6 default = w); used by the F7 relearn blip
+    "feat_relearn_blip": True,  # F7 relearn auto-revs to fuel cut (clutch + throttle) when parked
+    "relearn_blip_timeout_ms": 1500,  # max time to hold throttle waiting for the fuel-cut lock
     "clutch_pre_ms": 20,  # ms between clutch press and shift key press
     "clutch_overlap_ms": 55,  # ms shift key is held while clutch is down
     "clutch_release_ms": 25,  # ms between shift key release and clutch release
+    "feat_rev_blip": False,  # downshift throttle blip, keyboard output only
+    "blip_key": "w",  # throttle key used for rev-matching blips
+    "blip_ms": 70,  # throttle blip duration in milliseconds
     "current_mode": "COMFORT",
     "web_host": "127.0.0.1",
     "web_port": 8765,

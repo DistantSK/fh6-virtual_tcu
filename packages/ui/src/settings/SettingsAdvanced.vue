@@ -2,6 +2,9 @@
   import {
     CLUTCH_ASSIST_FIELDS,
     CLUTCH_TIMING_SLIDERS,
+    REV_BLIP_FIELDS,
+    REV_BLIP_TIMING_SLIDERS,
+    THROTTLE_KEY_FIELDS,
     VJOY_BUTTON_OPTIONS,
     VJOY_SHIFT_BUTTON_FIELDS,
   } from '@virtual-tcu/shared/config/settings'
@@ -274,6 +277,28 @@
           </NFlex>
         </NGridItem>
       </NGrid>
+      <NFlex
+        v-for="tk in THROTTLE_KEY_FIELDS"
+        :key="tk.key"
+        justify="space-between"
+        align="center"
+        :size="8"
+        style="margin-top: 16px"
+      >
+        <div style="flex: 1; padding-right: 12px">
+          <NText>{{ t(`extras.${tk.i18nKey}`) }}</NText>
+          <NText depth="3" style="font-size: 11px; display: block; margin-top: 2px">
+            {{ t('extras.throttleKeyHint') }}
+          </NText>
+        </div>
+        <NInput
+          :value="configText(tk.key)"
+          :placeholder="tk.placeholder"
+          size="small"
+          style="width: 100px; font-family: ui-monospace, monospace"
+          @update:value="(v) => store.setConfig(tk.key, v.trim().toLowerCase())"
+        />
+      </NFlex>
       <NFlex justify="space-between" align="center" :size="8" style="margin-top: 16px">
         <NText>{{ t('extras.clutchAssist') }}</NText>
         <NSwitch
@@ -319,6 +344,51 @@
           </div>
         </NFlex>
       </template>
+      <NFlex justify="space-between" align="center" :size="8" style="margin-top: 16px">
+        <NText>{{ t('extras.revBlip') }}</NText>
+        <NSwitch
+          :value="configBool('feat_rev_blip')"
+          @update:value="(v: boolean) => store.setConfig('feat_rev_blip', v)"
+        />
+      </NFlex>
+      <template v-if="configBool('feat_rev_blip')">
+        <NText depth="3" style="font-size: 11px; display: block; margin: 4px 0 12px">
+          {{ t('extras.revBlipHint') }}
+        </NText>
+        <NFlex
+          v-for="bk in REV_BLIP_FIELDS"
+          :key="bk.key"
+          justify="space-between"
+          align="center"
+          :size="8"
+        >
+          <NText>{{ t(`extras.${bk.i18nKey}`) }}</NText>
+          <NInput
+            :value="configText(bk.key)"
+            :placeholder="bk.placeholder"
+            size="small"
+            style="width: 100px; font-family: ui-monospace, monospace"
+            @update:value="(v) => store.setConfig(bk.key, v.trim().toLowerCase())"
+          />
+        </NFlex>
+        <NFlex vertical :size="14" style="margin-top: 12px">
+          <div v-for="s in REV_BLIP_TIMING_SLIDERS" :key="s.key">
+            <NFlex justify="space-between" align="center" style="margin-bottom: 4px">
+              <NText>{{ t(`extras.${s.i18nKey}`) }}</NText>
+              <NText code style="font-family: ui-monospace, monospace">
+                {{ configNumber(s.key) }}ms
+              </NText>
+            </NFlex>
+            <NSlider
+              :value="configNumber(s.key)"
+              :min="s.min"
+              :max="s.max"
+              :step="s.step ?? 1"
+              @update:value="(v) => store.setConfig(s.key, v)"
+            />
+          </div>
+        </NFlex>
+      </template>
     </NCard>
 
     <NCard :title="t('extras.hotkeys')" size="small" :bordered="false">
@@ -339,6 +409,19 @@
           </NFlex>
         </NGridItem>
       </NGrid>
+      <NText
+        depth="3"
+        style="
+          font-size: 11px;
+          display: block;
+          margin-top: 12px;
+          line-height: 1.5;
+          padding-top: 10px;
+          border-top: 1px solid var(--n-border-color, rgba(255, 255, 255, 0.08));
+        "
+      >
+        {{ t('extras.crossoverRelearnNote') }}
+      </NText>
     </NCard>
 
     <NCard :title="t('extras.fullTuning')" size="small" :bordered="false">

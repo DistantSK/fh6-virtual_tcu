@@ -128,6 +128,8 @@ class ConfigStore:
                     value = max(1024, min(65535, value))
                 elif key == "udp_port":
                     value = max(1, min(65535, value))
+                elif key == "blip_ms":
+                    value = max(0, min(150, value))
                 elif key not in ("launch_rpm",):
                     value = max(0, min(100, value))
                 else:

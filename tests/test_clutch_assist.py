@@ -36,6 +36,7 @@ def test_keyboard_output_with_clutch(mock_keyboard):
     mock_press, mock_release = mock_keyboard
     config = ConfigStore()
     config.set("feat_clutch_assist", True)
+    config.set("feat_rev_blip", False)
     config.set("clutch_key", "shift")
 
     kb = KeyboardOutput(config)
@@ -45,6 +46,44 @@ def test_keyboard_output_with_clutch(mock_keyboard):
     assert mock_release.call_args_list == [call("e"), call("shift")]
     assert kb.is_self_press("shift")
     assert kb.is_self_press("e")
+
+
+def test_keyboard_output_with_clutch_and_downshift_blip(mock_keyboard):
+    mock_press, mock_release = mock_keyboard
+    config = ConfigStore()
+    config.set("feat_clutch_assist", True)
+    config.set("feat_rev_blip", True)
+    config.set("clutch_key", "shift")
+    config.set("shift_key_down", "q")
+    config.set("blip_key", "w")
+    config.set("blip_ms", 70)
+
+    kb = KeyboardOutput(config)
+    kb._press_release_with_clutch("q")
+
+    assert mock_press.call_args_list == [call("shift"), call("q"), call("w")]
+    assert mock_release.call_args_list == [call("w"), call("q"), call("shift")]
+    assert kb.is_self_press("shift")
+    assert kb.is_self_press("w")
+    assert kb.is_self_press("q")
+
+
+def test_keyboard_output_without_clutch_downshift_blip(mock_keyboard):
+    mock_press, mock_release = mock_keyboard
+    config = ConfigStore()
+    config.set("feat_clutch_assist", False)
+    config.set("feat_rev_blip", True)
+    config.set("shift_key_down", "q")
+    config.set("blip_key", "w")
+    config.set("blip_ms", 70)
+
+    kb = KeyboardOutput(config)
+    kb._press_release_with_blip("q")
+
+    assert mock_press.call_args_list == [call("q"), call("w")]
+    assert mock_release.call_args_list == [call("w"), call("q")]
+    assert kb.is_self_press("w")
+    assert kb.is_self_press("q")
 
 
 def test_shift_history_sent_at():

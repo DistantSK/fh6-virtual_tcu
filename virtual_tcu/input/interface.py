@@ -41,3 +41,18 @@ class OutputInterface(ABC):
     def shutdown(self):
         """Release any OS resources (thread pools, device handles, hooks)."""
         ...
+
+    def relearn_blip_supported(self) -> bool:
+        """Whether this backend can hold throttle + clutch for the F7 relearn
+        fuel-cut blip. Defaults to False; only the keyboard backend overrides
+        it, since throttle/clutch are game keybinds the keyboard can drive."""
+        return False
+
+    def begin_relearn_blip(self, throttle_key: str, clutch_key: str) -> None:
+        """Engage clutch then floor throttle so the engine free-revs to the
+        fuel cut. Held until end_relearn_blip(). No-op unless supported."""
+        ...
+
+    def end_relearn_blip(self) -> None:
+        """Release the throttle and clutch held by begin_relearn_blip()."""
+        ...

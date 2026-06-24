@@ -32,6 +32,8 @@
     FEATURE_TOGGLES,
     HOTKEY_FIELDS,
     OUTPUT_MODE_OPTIONS,
+    REV_BLIP_FIELDS,
+    REV_BLIP_TIMING_SLIDERS,
     SETTING_GROUPS,
     SHIFT_KEY_FIELDS,
     VJOY_BUTTON_OPTIONS,
@@ -823,6 +825,51 @@
                   </NFlex>
                   <NFlex vertical :size="14" style="margin-top: 12px">
                     <div v-for="s in CLUTCH_TIMING_SLIDERS" :key="s.key">
+                      <NFlex justify="space-between" align="center" style="margin-bottom: 4px">
+                        <NText>{{ $t(`extras.${s.i18nKey}`) }}</NText>
+                        <NText code style="font-family: ui-monospace, monospace">
+                          {{ configValue(s.key) }}ms
+                        </NText>
+                      </NFlex>
+                      <NSlider
+                        :value="configValue(s.key)"
+                        :min="s.min"
+                        :max="s.max"
+                        :step="s.step ?? 1"
+                        @update:value="(v) => emit('setConfig', s.key, v)"
+                      />
+                    </div>
+                  </NFlex>
+                </template>
+                <NFlex justify="space-between" align="center" style="margin-top: 16px">
+                  <NText>{{ $t('extras.revBlip') }}</NText>
+                  <NSwitch
+                    :value="configBool('feat_rev_blip')"
+                    @update:value="emit('setConfig', 'feat_rev_blip', $event)"
+                  />
+                </NFlex>
+                <template v-if="configBool('feat_rev_blip')">
+                  <NText depth="3" style="font-size: 11px; display: block; margin: 4px 0 12px">
+                    {{ $t('extras.revBlipHint') }}
+                  </NText>
+                  <NFlex
+                    v-for="h in REV_BLIP_FIELDS"
+                    :key="h.key"
+                    justify="space-between"
+                    align="center"
+                    :size="8"
+                  >
+                    <NText>{{ $t(`extras.${h.i18nKey}`) }}</NText>
+                    <NInput
+                      :value="configText(h.key)"
+                      :placeholder="h.placeholder"
+                      size="small"
+                      style="width: 100px; font-family: ui-monospace, monospace"
+                      @update:value="(v) => emit('setConfig', h.key, v.trim().toLowerCase())"
+                    />
+                  </NFlex>
+                  <NFlex vertical :size="14" style="margin-top: 12px">
+                    <div v-for="s in REV_BLIP_TIMING_SLIDERS" :key="s.key">
                       <NFlex justify="space-between" align="center" style="margin-bottom: 4px">
                         <NText>{{ $t(`extras.${s.i18nKey}`) }}</NText>
                         <NText code style="font-family: ui-monospace, monospace">

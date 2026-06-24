@@ -14,6 +14,14 @@ class GearRatioCalibrator:
     OUTLIER_GRACE = 5  # samples before outlier rejection kicks in
     # Reject samples that would collapse spacing between adjacent gears.
     ORDER_TOLERANCE = 0.03
+    # Plausible rpm-per-km/h envelope for a valid gear-ratio sample. The lower
+    # bound used to be 15, which silently discarded the tall top gear of very
+    # fast cars: a hypercar pulling 410 km/h in 5th reads ~14 rpm/(km/h), below
+    # 15, so 5th never learned and the box was stuck "learning 4/5". 8.0 still
+    # rejects genuine garbage (it implies >500 km/h at idle) while admitting any
+    # real top gear. MIN_SPEED_KMH + the per-gear ordering check guard the rest.
+    RATIO_MIN_RPM_PER_KMH = 8.0
+    RATIO_MAX_RPM_PER_KMH = 500.0
 
     def __init__(self):
         self._ratios: dict[tuple, dict[int, float]] = {}
@@ -56,7 +64,7 @@ class GearRatioCalibrator:
         if td.rear_slip > 0.8 or td.front_slip > 0.8:
             return
         ratio = td.current_rpm / td.speed_kmh
-        if ratio < 15 or ratio > 500:
+        if ratio < self.RATIO_MIN_RPM_PER_KMH or ratio > self.RATIO_MAX_RPM_PER_KMH:
             return
 
         car_ratios = self._ratios.setdefault(ck, {})
@@ -97,6 +105,23 @@ class GearRatioCalibrator:
 
     def has_data(self, car_key: tuple) -> bool:
         return car_key in self._ratios and len(self._ratios[car_key]) >= 2
+
+    def gear_sample_counts(self, car_key: tuple) -> dict[int, int]:
+        """Per-gear sample counts for *car_key* — how converged each gear is."""
+        return self._counts.get(car_key, {})
+
+    def mature_gear_count(self, car_key: tuple, min_samples: int = 5) -> int:
+        """Number of gears whose ratio has converged past outlier grace.
+
+        A gear with only one or two samples (e.g. a brief 1->2 launch) does not
+        count: its ratio is a single raw reading, not a settled estimate."""
+        return sum(1 for n in self._counts.get(car_key, {}).values() if n >= min_samples)
+
+    def max_gear_seen(self, car_key: tuple) -> int:
+        """Highest forward gear with any learned sample — a lower bound on the
+        car's real top gear (telemetry never reports the gear count directly)."""
+        counts = self._counts.get(car_key)
+        return max(counts) if counts else 0
 
     def dump(self, car_key: tuple) -> dict | None:
         """Serialise learned ratios for *car_key*, or None if no data."""

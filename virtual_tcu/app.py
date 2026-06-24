@@ -25,6 +25,19 @@ from virtual_tcu.web.server import WebServer
 BACKEND_READY_MARKER = "[backend-ready]"
 
 
+def clutch_assist_enabled(config: ConfigStore) -> bool:
+    return bool(config.get("feat_clutch_assist", False)) or bool(
+        config.get("vjoy_use_clutch", False)
+    )
+
+
+def toggle_clutch_assist(config: ConfigStore) -> bool:
+    enabled = not clutch_assist_enabled(config)
+    config.set("feat_clutch_assist", enabled)
+    config.set("vjoy_use_clutch", enabled)
+    return enabled
+
+
 async def headless_loop():
     print("  [.] Running headless (no aiohttp). Press Ctrl+C to stop.")
     stop_event = asyncio.Event()
@@ -103,6 +116,18 @@ def setup_hotkeys(tcu: TCULogic, config: ConfigStore, logger: TelemetryLogger):
             config.get("hotkey_snapshot", "f8"),
             "snapshot_dump",
             lambda: tcu.trigger_fusion_snapshot("manual_dump"),
+        ),
+        (
+            config.get("hotkey_crossover_relearn", "f7"),
+            "crossover_relearn",
+            lambda: tcu.reset_crossover_learning(),
+        ),
+        (
+            config.get("hotkey_toggle_clutch", "f10"),
+            "toggle_clutch",
+            lambda: print(
+                f"  [Clutch] {'ON' if toggle_clutch_assist(config) else 'OFF'}"
+            ),
         ),
     ]
 

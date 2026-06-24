@@ -25,7 +25,9 @@ from virtual_tcu.state.shift_history import ShiftHistory
 from virtual_tcu.state.watchdog import Watchdog
 from virtual_tcu.storage.profiles import ProfileStore
 from virtual_tcu.telemetry.car_key import (
-    MIN_GEAR1_SAMPLES_FOR_DRIFT,
+    RATIO_DRIFT_BASELINE_MIN_SAMPLES,
+    RATIO_DRIFT_GEAR_FLAG_SAMPLES,
+    RATIO_DRIFT_GEARS_NEEDED,
     RATIO_DRIFT_THRESHOLD,
     car_key_base,
     storage_key,
@@ -33,6 +35,36 @@ from virtual_tcu.telemetry.car_key import (
 from virtual_tcu.telemetry.fusion_logger import FusionSnapshotLogger
 from virtual_tcu.telemetry.logger import TelemetryLogger
 from virtual_tcu.telemetry.model import Telemetry
+
+# How long the HUD/Dashboard show the blue "relearning" status after the
+# crossover-upshift relearn hotkey is pressed, before falling back to the
+# live learned/learning state.
+CROSSOVER_RELEARN_FLASH_S = 5.0
+
+# Above this speed (km/h) during a relearn blip we conclude the clutch did not
+# disengage (Automatic transmission) and abort before the car drives off.
+RELEARN_BLIP_MOVE_KMH = 3.0
+
+# --- Crossover "learned" status thresholds ---
+# Telemetry never reports a car's gear count, so the badge is gated on real
+# coverage instead: per-gear ratio convergence, power-curve confidence, and a
+# confirmed top gear (a rejected upshift, or a driving plateau as a fallback).
+# Per-gear ratio samples before that gear counts as converged (past OUTLIER_GRACE).
+LEARN_MATURE_SAMPLES = 5
+# Power-curve confidence required before a car reads as fully learned.
+LEARN_CONF_FLOOR = 0.5
+# When the real top gear has not been proven by a rejected upshift, accept the
+# highest gear seen as the top only after this many seconds of genuine driving
+# without reaching a higher gear, and only at/above LEARN_MIN_TOP_FALLBACK.
+LEARN_PLATEAU_S = 30.0
+LEARN_MIN_TOP_FALLBACK = 4
+# A rejected upshift below UPSHIFT_CAP_HARD_FROM_GEAR is normally soft (retried,
+# in case it was a one-off missed shift on a car that really has more gears). But
+# a genuine top gear is rejected on EVERY attempt to push past it. After this
+# many confirmed rejections at the same gear with no successful upshift between,
+# treat the cap as the real top and stop retry-clearing it — so a short (<=5-
+# gear) box proves its top via the cap instead of needing a 30 s cruise plateau.
+CAP_CONFIRM_STICKY = 2
 
 
 class TCULogic:
@@ -88,11 +120,34 @@ class TCULogic:
         self._pending_upshift_until = 0.0
         self._upshift_cap_by_key: dict[tuple, int] = {}
         self._upshift_cap_set_at: dict[tuple, float] = {}
+        self._cap_confirm: dict[tuple, int] = {}
+        # Highest forward gear seen per car + a plateau accumulator (driving
+        # seconds since that high-water mark last advanced). With no top-gear
+        # field in telemetry, this is how the "learned" badge knows the box has
+        # been driven end to end rather than just 1->2.
+        self._max_gear_seen: dict[tuple, int] = {}
+        self._gear_plateau_s: dict[tuple, float] = {}
+        # monotonic deadline until which the crossover-upshift status reads as
+        # "relearning" (set by the relearn hotkey); 0 = not relearning.
+        self._crossover_relearn_until = 0.0
+        # True while the F7 fuel-cut blip holds throttle; suppresses shift output.
+        self._relearn_blip_active = False
+        # Transient, HUD-facing outcome of the last F7 relearn blip.
+        self._relearn_status: str | None = None
+        self._relearn_status_rpm: float | None = None
+        self._relearn_status_until = 0.0
+        # Most recent telemetry frame, for the (off-thread) relearn hotkey.
+        self._last_td: Telemetry | None = None
 
         self._reverse_lock_until = 0.0
         self._current_car_key: tuple | None = None
         self._tune_id_by_base: dict[tuple[int, int, int], int] = {}
-        self._profile_baseline_gear1: dict[tuple, float] = {}
+        # Saved per-gear ratio fingerprint of the active tune (raw rpm/(km/h)),
+        # plus a per-gear streak of consecutive live samples that disagree with
+        # it. When any well-sampled gear drifts past threshold for long enough,
+        # the gearbox changed → split into a new tune slot.
+        self._profile_baseline_ratios: dict[tuple, dict[int, float]] = {}
+        self._drift_streak: dict[tuple, dict[int, int]] = {}
         self._active_tune_signature: int | None = None
         self._was_race_on = False
 
@@ -173,12 +228,144 @@ class TCULogic:
         self._calibrator._counts.pop(ck, None)
         self._power_curve._fits.pop(ck, None)
         self._power_curve._max_r.pop(ck, None)
+        self._power_curve._min_r.pop(ck, None)
         self._rev_limiter._redline.pop(ck, None)
         self._rev_limiter._rpm_window.pop(ck, None)
         self._rev_limiter._peak_hold.pop(ck, None)
-        self._profile_baseline_gear1.pop(ck, None)
+        self._profile_baseline_ratios.pop(ck, None)
+        self._drift_streak.pop(ck, None)
         self._upshift_cap_by_key.pop(ck, None)
         self._upshift_cap_set_at.pop(ck, None)
+        self._cap_confirm.pop(ck, None)
+        self._max_gear_seen.pop(ck, None)
+        self._gear_plateau_s.pop(ck, None)
+
+    def _shift_to(self, from_gear: int, target_gear: int) -> None:
+        """Emit a shift unless a relearn fuel-cut blip is in progress (we hold
+        the engine against the limiter then, and must not auto-upshift)."""
+        if self._relearn_blip_active:
+            return
+        self._kb.shift_to(from_gear, target_gear)
+
+    def reset_crossover_learning(self) -> bool:
+        """Relearn the traction crossover-upshift model for the current car.
+
+        The crossover upshift has no learned state of its own — it rides on the
+        per-car gear ratios and power curve — so "relearning" wipes those inputs
+        (in memory and in the persisted profile) and lets them rebuild from live
+        telemetry. This full relearn also clears the learned rev limiter / fuel
+        cut and, when the car is parked, fires a clutch+throttle blip to remeasure
+        it on the spot (see _run_relearn_blip). Arms the 5 s "relearning" status
+        flash on the HUD and Dashboard. Returns True if a current car was reset.
+        """
+        with self._data_lock:
+            ck = self._current_car_key
+            if ck is None or ck[0] <= 0:
+                return False
+            if self._relearn_blip_active:
+                return False
+            # In-memory: drop the crossover inputs and the caps derived from them.
+            self._calibrator._ratios.pop(ck, None)
+            self._calibrator._counts.pop(ck, None)
+            self._power_curve._fits.pop(ck, None)
+            self._power_curve._max_r.pop(ck, None)
+            self._power_curve._min_r.pop(ck, None)
+            # Full relearn also drops the learned rev limiter / redline so the
+            # blip re-measures the fuel cut from scratch. The detector is
+            # rise-only, so a stale-high reading would never be corrected down
+            # unless we clear it first.
+            self._rev_limiter._redline.pop(ck, None)
+            self._rev_limiter._rpm_window.pop(ck, None)
+            self._rev_limiter._peak_hold.pop(ck, None)
+            self._profile_baseline_ratios.pop(ck, None)
+            self._drift_streak.pop(ck, None)
+            self._upshift_cap_by_key.pop(ck, None)
+            self._upshift_cap_set_at.pop(ck, None)
+            self._cap_confirm.pop(ck, None)
+            self._max_gear_seen.pop(ck, None)
+            self._gear_plateau_s.pop(ck, None)
+            # Persisted: strip the relearned blocks (incl. rev limiter) so they
+            # don't reload; keep the rest of the profile (metadata).
+            profile = self._profiles.get(ck)
+            if isinstance(profile, dict):
+                for stale in ("gear_ratios", "gear_counts", "power_curve", "rev_limiter"):
+                    profile.pop(stale, None)
+                self._profiles.set(ck, profile)
+            self._crossover_relearn_until = time.monotonic() + CROSSOVER_RELEARN_FLASH_S
+            td = self._last_td
+            print(
+                f"[Crossover] relearn {storage_key(ck)}: "
+                "cleared gear ratios + power curve + rev limiter"
+            )
+        # Run the fuel-cut blip OUTSIDE the data lock: telemetry processing (and
+        # rev_limiter.observe, which is what actually learns the cut) must keep
+        # running on its own thread while we hold throttle here.
+        self._run_relearn_blip(ck, td)
+        return True
+
+    def _set_relearn_status(self, code: str, rpm: float | None = None, secs: float = 5.0) -> None:
+        self._relearn_status = code
+        self._relearn_status_rpm = rpm
+        self._relearn_status_until = time.monotonic() + secs
+
+    def _run_relearn_blip(self, ck: tuple, td: Telemetry | None) -> None:
+        """When parked, auto declutch + floor throttle to free-rev the engine to
+        its fuel cut so the rev limiter relearns immediately after an F7 reset."""
+        if not self._config.get("feat_relearn_blip", True):
+            return
+        if not self._kb.relearn_blip_supported():
+            self._set_relearn_status("skipped")
+            print(
+                "[Relearn] blip skipped: this output mode has no throttle "
+                "channel — rev to fuel cut manually."
+            )
+            return
+        # Stationary + live gate: only auto-rev when safely parked, on track.
+        now = time.time()
+        fresh = (now - self._last_packet_time) < 0.5
+        if (
+            td is None
+            or not fresh
+            or not bool(td.is_race_on)
+            or td.speed_kmh > 1.0
+            or self._airtime_state != "GROUND"
+        ):
+            self._set_relearn_status("skipped")
+            print("[Relearn] blip skipped: stop the car (race on, parked) before F7.")
+            return
+        throttle_key = str(self._config.get("throttle_key", "w")).lower()
+        clutch_key = str(self._config.get("clutch_key", "shift")).lower()
+        timeout_s = max(0.5, int(self._config.get("relearn_blip_timeout_ms", 1500)) / 1000.0)
+        self._relearn_blip_active = True
+        learned = moved = False
+        try:
+            self._kb.begin_relearn_blip(throttle_key, clutch_key)
+            deadline = time.monotonic() + timeout_s
+            while time.monotonic() < deadline:
+                time.sleep(0.05)
+                if self._rev_limiter.dump(ck) is not None:
+                    learned = True
+                    break
+                cur = self._last_td
+                if cur is not None and cur.speed_kmh > RELEARN_BLIP_MOVE_KMH:
+                    moved = True
+                    break
+        finally:
+            self._kb.end_relearn_blip()
+            self._relearn_blip_active = False
+        if learned:
+            rpm = self._rev_limiter.dump(ck)
+            self._set_relearn_status("learned", rpm)
+            print(f"[Relearn] fuel cut learned: {rpm:.0f} rpm")
+        elif moved:
+            self._set_relearn_status("aborted_moved")
+            print(
+                "[Relearn] aborted: car moved — clutch did not disengage. "
+                "Set the game transmission to Manual or Manual w/ Clutch (not Automatic)."
+            )
+        else:
+            self._set_relearn_status("timeout")
+            print("[Relearn] timed out before locking the fuel cut; try again while parked.")
 
     def _resolve_pending_upshift(self, td: Telemetry, now: float) -> None:
         """Clear or cap upshift targets once the game confirms or rejects a shift."""
@@ -191,15 +378,25 @@ class TCULogic:
                 ck = td.car_key
                 self._upshift_cap_by_key[ck] = 10
                 self._upshift_cap_set_at.pop(ck, None)
+                self._cap_confirm.pop(ck, None)  # gear advanced → not the top after all
             return
         if now >= self._pending_upshift_until:
             ck = td.car_key
             if ck[0] > 0:
-                self._upshift_cap_by_key[ck] = min(self._upshift_cap_by_key.get(ck, 10), td.gear)
-                if td.gear < Cfg.UPSHIFT_CAP_HARD_FROM_GEAR:
-                    self._upshift_cap_set_at[ck] = now
+                rejected_gear = td.gear
+                old_cap = self._upshift_cap_by_key.get(ck, 10)
+                self._upshift_cap_by_key[ck] = min(old_cap, rejected_gear)
+                # Confirm-count: a one-off rejection caps once (soft, retried);
+                # a real top gear is rejected every time we try to climb past it.
+                if old_cap >= 10 or rejected_gear == old_cap:
+                    self._cap_confirm[ck] = self._cap_confirm.get(ck, 0) + 1
                 else:
-                    self._upshift_cap_set_at.pop(ck, None)
+                    self._cap_confirm[ck] = 1  # cap dropped to a lower gear → restart
+                confirmed = self._cap_confirm[ck] >= CAP_CONFIRM_STICKY
+                if td.gear < Cfg.UPSHIFT_CAP_HARD_FROM_GEAR and not confirmed:
+                    self._upshift_cap_set_at[ck] = now  # soft: eligible for retry-clear
+                else:
+                    self._upshift_cap_set_at.pop(ck, None)  # hard or confirmed → sticky
             self._pending_upshift_from = None
             self._pending_upshift_until = 0.0
 
@@ -211,6 +408,8 @@ class TCULogic:
         cap = self._upshift_cap_by_key.get(ck, 10)
         if cap >= 10 or td.gear < cap:
             return
+        if self._cap_confirm.get(ck, 0) >= CAP_CONFIRM_STICKY:
+            return  # confirmed real top gear — never retry-clear
         if td.gear >= Cfg.UPSHIFT_CAP_HARD_FROM_GEAR:
             return
         set_at = self._upshift_cap_set_at.get(ck)
@@ -220,6 +419,50 @@ class TCULogic:
             return
         self._upshift_cap_by_key[ck] = 10
         self._upshift_cap_set_at.pop(ck, None)
+
+    def _update_learn_tracking(self, td: Telemetry, dt: float) -> None:
+        """Track the highest forward gear seen and how long we've driven without
+        reaching a higher one. No telemetry field reports the car's top gear, so
+        this high-water mark (plus a rejected-upshift cap when available) is how
+        the 'learned' badge knows the box has been driven end to end."""
+        ck = td.car_key
+        if ck[0] <= 0 or td.gear < 1 or td.gear > 10:
+            return
+        seen = self._max_gear_seen.get(ck, 0)
+        if td.gear > seen:
+            self._max_gear_seen[ck] = td.gear
+            self._gear_plateau_s[ck] = 0.0
+            return
+        # Only count genuine driving toward the plateau (not idling / menus).
+        if td.is_race_on and td.speed_kmh > 30.0 and td.throttle > 0.10:
+            self._gear_plateau_s[ck] = self._gear_plateau_s.get(ck, 0.0) + dt
+
+    def _learn_status(self, td: Telemetry) -> tuple[int, int, float, bool]:
+        """Return ``(mature_gears, target_top_gear, progress_0_1, learned)``.
+
+        ``target_top_gear`` is the proven top (a rejected-upshift cap) when
+        known, else the highest gear seen. ``learned`` requires every gear up to
+        the target to have converged, the power curve to be confident, and the
+        top to be confirmed — either a proven cap or a driving plateau at/above
+        a sane minimum. A quick 1->2 launch therefore never reads as learned."""
+        ck = td.car_key
+        if ck[0] <= 0:
+            return 0, 0, 0.0, False
+        mature = self._calibrator.mature_gear_count(ck, LEARN_MATURE_SAMPLES)
+        max_seen = max(self._max_gear_seen.get(ck, 0), self._calibrator.max_gear_seen(ck))
+        cap = self._upshift_cap_by_key.get(ck, 10)
+        cap_known = cap < 10
+        target = max(cap if cap_known else max_seen, 1)
+        conf_ok = self._power_curve.confidence(ck) >= LEARN_CONF_FLOOR
+        if cap_known:
+            top_confirmed = True
+        else:
+            plateau = self._gear_plateau_s.get(ck, 0.0) >= LEARN_PLATEAU_S
+            top_confirmed = plateau and max_seen >= LEARN_MIN_TOP_FALLBACK
+        full_coverage = target >= 2 and mature >= target
+        learned = bool(conf_ok and full_coverage and top_confirmed)
+        progress = min(1.0, mature / target) if target > 0 else 0.0
+        return mature, target, progress, learned
 
     def _reverse_exit_allows_shifts(self, td: Telemetry) -> bool:
         """Forward launch from 1st after R — don't hold the full exit lock."""
@@ -237,10 +480,21 @@ class TCULogic:
         if data is None:
             return
         stored_sig = data.get("tune_signature")
-        if stored_sig is not None and stored_sig != td.tune_signature:
+        # Compare against the signature captured BEFORE the rev-limiter override
+        # mutates td.engine_max_rpm (see _sync_profile_tune_id / line ~791).
+        # td.tune_signature is derived from engine_max_rpm, so reading it here —
+        # after a learned redline has overwritten engine_max_rpm — would yield a
+        # "real-redline" signature that never matches the stored "nominal" one,
+        # falsely rejecting the profile and reverting the car to "learning".
+        live_sig = (
+            self._active_tune_signature
+            if self._active_tune_signature is not None
+            else td.tune_signature
+        )
+        if stored_sig is not None and stored_sig != live_sig:
             print(
                 f"[Profiles] engine/drivetrain changed for {storage_key(ck)} "
-                f"(sig {stored_sig} -> {td.tune_signature}), not loading stale data"
+                f"(sig {stored_sig} -> {live_sig}), not loading stale data"
             )
             return
         if "gear_ratios" in data:
@@ -249,9 +503,28 @@ class TCULogic:
                 {"ratios": data["gear_ratios"], "counts": data.get("gear_counts", {})},
             )
             ratios = data["gear_ratios"]
-            r1 = ratios.get(1) or ratios.get("1")
-            if r1 is not None:
-                self._profile_baseline_gear1[ck] = float(r1)
+            counts = data.get("gear_counts", {}) or {}
+            # Baseline = every well-sampled saved gear ratio, keyed by int gear.
+            # JSON keys may be strings; normalise both ratios and counts.
+            baseline: dict[int, float] = {}
+            for gk, gv in ratios.items():
+                try:
+                    g = int(gk)
+                    rv = float(gv)
+                except (TypeError, ValueError):
+                    continue
+                if rv <= 0:
+                    continue
+                n = counts.get(gk, counts.get(str(g), counts.get(g, 0)))
+                try:
+                    n = int(n)
+                except (TypeError, ValueError):
+                    n = 0
+                if n >= RATIO_DRIFT_BASELINE_MIN_SAMPLES:
+                    baseline[g] = rv
+            if baseline:
+                self._profile_baseline_ratios[ck] = baseline
+            self._drift_streak.pop(ck, None)
         if "power_curve" in data:
             self._power_curve.load(ck, data["power_curve"])
         if "rev_limiter" in data:
@@ -280,21 +553,46 @@ class TCULogic:
         if not self._config.get("feat_per_car_profiles", True):
             return
         ck = self._current_car_key
-        if ck is None or td.gear != 1:
+        if ck is None:
             return
-        baseline = self._profile_baseline_gear1.get(ck)
-        if baseline is None or baseline <= 0:
+        baseline = self._profile_baseline_ratios.get(ck)
+        if not baseline:
             return
-        if td.speed_kmh < GearRatioCalibrator.MIN_SPEED_KMH:
+        base = baseline.get(td.gear)
+        if base is None or base <= 0:
             return
-        counts = self._calibrator._counts.get(ck, {})
-        if counts.get(1, 0) < MIN_GEAR1_SAMPLES_FOR_DRIFT:
+        # Gear 1 is excluded: launch wheelspin makes wheel speed exceed ground
+        # speed, inflating its raw rpm/(km/h) and faking drift. Any real gearbox
+        # change moves the upper gears too, so 2nd+ is enough and far cleaner.
+        if td.gear < 2:
             return
-        live = self._calibrator.get_ratios(ck).get(1)
-        if live is None or live <= 0:
+        # Use the RAW measured ratio, not the calibrator's filtered value: once a
+        # gear has many saved samples its outlier guard rejects a big change, so
+        # the filtered ratio would never move and the drift would stay invisible.
+        if (
+            td.is_shifting
+            or td.speed_kmh < GearRatioCalibrator.MIN_SPEED_KMH
+            or td.current_rpm <= 0
+            or td.throttle < 0.45
+            or td.torque_nm <= 0
+            or td.rear_slip > 0.8
+            or td.front_slip > 0.8
+        ):
             return
-        if abs(live - baseline) / baseline > RATIO_DRIFT_THRESHOLD:
-            self._split_tune_profile(td, "gear ratio drift")
+        raw = td.current_rpm / td.speed_kmh
+        lo = GearRatioCalibrator.RATIO_MIN_RPM_PER_KMH
+        hi = GearRatioCalibrator.RATIO_MAX_RPM_PER_KMH
+        if raw < lo or raw > hi:
+            return
+        dev = abs(raw - base) / base
+        streak = self._drift_streak.setdefault(ck, {})
+        if dev > RATIO_DRIFT_THRESHOLD:
+            streak[td.gear] = streak.get(td.gear, 0) + 1
+        elif dev < RATIO_DRIFT_THRESHOLD * 0.5:
+            streak[td.gear] = 0  # clearly matches baseline → clear this gear's flag
+        flagged = sum(1 for s in streak.values() if s >= RATIO_DRIFT_GEAR_FLAG_SAMPLES)
+        if flagged >= RATIO_DRIFT_GEARS_NEEDED:
+            self._split_tune_profile(td, f"gearbox change ({flagged} gears drifted)")
 
     def shutdown(self):
         self.save_profiles()
@@ -390,6 +688,11 @@ class TCULogic:
         with self._data_lock:
             return self._shift_count
 
+    def _clutch_assist_enabled(self) -> bool:
+        return bool(self._config.get("feat_clutch_assist", False)) or bool(
+            self._config.get("vjoy_use_clutch", False)
+        )
+
     def snapshot(self, td: Telemetry | None) -> dict:
         with self._data_lock:
             if td is None:
@@ -419,6 +722,14 @@ class TCULogic:
                     "calibrated": False,
                     "log_status": self._logger.status,
                     "power_curve_learned": False,
+                    "crossover_relearning": False,
+                    "crossover_learned": False,
+                    "clutch_assist_enabled": self._clutch_assist_enabled(),
+                    "relearn_status": None,
+                    "relearn_status_rpm": None,
+                    "learn_mature_gears": 0,
+                    "learn_target_gears": 0,
+                    "learn_progress": 0.0,
                     "shift_history": [],
                     "session_stats": self._session_stats.snapshot(),
                     "watchdog_stuck": self._watchdog.check(),
@@ -433,6 +744,7 @@ class TCULogic:
                     "is_race_on": False,
                     "driving_log": False,
                 }
+            mature_gears, target_gears, learn_progress, crossover_learned = self._learn_status(td)
             return {
                 "gear": td.gear,
                 "is_race_on": bool(td.is_race_on),
@@ -459,6 +771,16 @@ class TCULogic:
                 "peak_g": self._peak_g,
                 "calibrated": self._calibrator.has_data(td.car_key),
                 "power_curve_learned": self._power_curve.has_data(td.car_key),
+                "crossover_relearning": time.monotonic() < self._crossover_relearn_until,
+                "crossover_learned": crossover_learned,
+                "clutch_assist_enabled": self._clutch_assist_enabled(),
+                "relearn_status": (
+                    self._relearn_status if time.monotonic() < self._relearn_status_until else None
+                ),
+                "relearn_status_rpm": self._relearn_status_rpm,
+                "learn_mature_gears": mature_gears,
+                "learn_target_gears": target_gears,
+                "learn_progress": learn_progress,
                 "log_status": self._logger.status,
                 "shift_history": self._shift_history.snapshot(),
                 "session_stats": self._session_stats.snapshot(),
@@ -489,6 +811,7 @@ class TCULogic:
 
     def _process_internal(self, td: Telemetry, raw_packet: bytes | None):
         now = time.time()
+        self._last_td = td
 
         is_race_now = bool(td.is_race_on)
         self._was_race_on = is_race_now
@@ -530,6 +853,7 @@ class TCULogic:
         if td.gear != self._prev_gear and td.gear > 0 and self._prev_gear > 0:
             if td.gear > self._prev_gear:
                 self._upshift_cap_by_key[td.car_key] = 10
+                self._cap_confirm.pop(td.car_key, None)
                 self._pending_upshift_from = None
                 self._pending_upshift_until = 0.0
             if not self._we_shifted:
@@ -549,6 +873,8 @@ class TCULogic:
         self._speed_history.append(td.speed_kmh)
         self._brake_raw_history.append(td.brake)
         self._throttle_raw_history.append(td.throttle)
+
+        self._update_learn_tracking(td, dt)
 
         td.accel_raw = int(
             (sum(self._throttle_history) / max(1, len(self._throttle_history))) * 255
@@ -770,7 +1096,7 @@ class TCULogic:
             self._no_downshift_until = max(self._no_downshift_until, now + downshift_lock_s)
         self._we_shifted = True
         self._shift_count += 1
-        self._kb.shift_to(td.gear, td.gear + 1)
+        self._shift_to(td.gear, td.gear + 1)
         self._logger.mark_event()
         self._shift_history.record("UP", td, reason=state, rule=self.mode.value, sent_at=now)
         self._session_stats.record_shift("UP", state)
@@ -822,7 +1148,7 @@ class TCULogic:
         self._we_shifted = True
         self._shift_count += 1
         self._last_downshift_time = now
-        self._kb.shift_to(td.gear, td.gear - 1)
+        self._shift_to(td.gear, td.gear - 1)
         self._logger.mark_event()
         self._shift_history.record("DOWN", td, reason=state, rule=self.mode.value, sent_at=now)
         self._session_stats.record_shift("DOWN", state)
@@ -853,7 +1179,7 @@ class TCULogic:
         self._we_shifted = True
         self._shift_count += 2
         self._last_downshift_time = now
-        self._kb.shift_to(td.gear, target)
+        self._shift_to(td.gear, target)
         self._logger.mark_event()
         self._shift_history.record(
             "DOWN",
@@ -1079,9 +1405,42 @@ class TCULogic:
 
         fallback = self._config.get("race_up_wot", 94) / 100
         target_pct = self._power_curve.optimal_upshift_rpm(td, fallback=fallback, offset=offset)
+
+        sub = "in band"
+        if self._config.get("feat_crossover_upshift", True):
+            ratios = self._calibrator.get_ratios(td.car_key)
+            decision = self._power_curve.crossover_upshift_ok(td, ratios)
+            if decision is not None:
+                # Warm car with a known next-gear ratio: tractive-force
+                # crossover picks the point, bounded below by the slider
+                # (early floor) and above by the limiter (late ceiling).
+                if td.rpm_pct >= Cfg.UPSHIFT_LIMITER_CEIL:
+                    sub = "limiter"
+                elif td.rpm_pct < target_pct - Cfg.CROSSOVER_EARLY_BAND:
+                    return False  # slider floor — refuse to short-shift
+                elif not decision:
+                    return False  # next gear can't carry the load yet — hold
+                else:
+                    sub = "crossover"
+                return self._shift_up(td, 300, "UPSHIFT", sub, downshift_lock_s=downshift_lock_s)
+
+        # Crossover feature on but undecided (cold start, or the model is still
+        # immature), or feature disabled: rpm-percent behaviour. While the
+        # crossover model is learning, hold the upshift toward
+        # CROSSOVER_MATURE_MAX_R so the engine actually reaches the top of its
+        # range and the high-rpm samples get collected — otherwise a low
+        # per-mode WOT slider (e.g. offroad 90%) would shift before the model
+        # ever matures and the crossover would never engage. This only raises
+        # the learning-phase target; once mature the crossover branch above
+        # takes over. The car still upshifts (just nearer the limiter), so the
+        # cold-start "upshift out of 1st without ratio data" path is preserved.
+        if self._config.get(
+            "feat_crossover_upshift", True
+        ) and not self._power_curve.is_crossover_mature(td.car_key):
+            target_pct = max(target_pct, Cfg.CROSSOVER_MATURE_MAX_R)
         if td.rpm_pct < target_pct:
             return False
-        return self._shift_up(td, 300, "UPSHIFT", "in band", downshift_lock_s=downshift_lock_s)
+        return self._shift_up(td, 300, "UPSHIFT", sub, downshift_lock_s=downshift_lock_s)
 
     def _should_engine_brake(self, td: Telemetry) -> bool:
         if not self._config.get("feat_engine_brake"):

@@ -22,13 +22,7 @@ def parse_fh6_packet(data: bytes) -> Telemetry | None:
         gear = data[319]
 
         car_ord, car_cls, pi, drivetrain, ncyl = struct.unpack_from("<iiiii", data, 212)
-        slip_fl, slip_fr, slip_rl, slip_rr = struct.unpack_from("<ffff", data, 84)
-        slip_angle_fl, slip_angle_fr, slip_angle_rl, slip_angle_rr = struct.unpack_from(
-            "<ffff", data, 164
-        )
-        combined_slip_fl, combined_slip_fr, combined_slip_rl, combined_slip_rr = struct.unpack_from(
-            "<ffff", data, 180
-        )
+        slip_fl, slip_fr, slip_rl, slip_rr = struct.unpack_from("<ffff", data, 136)
     except (struct.error, IndexError):
         return None
 
@@ -66,13 +60,5 @@ def parse_fh6_packet(data: bytes) -> Telemetry | None:
         slip_fr=slip_fr,
         slip_rl=slip_rl,
         slip_rr=slip_rr,
-        slip_angle_fl=slip_angle_fl,
-        slip_angle_fr=slip_angle_fr,
-        slip_angle_rl=slip_angle_rl,
-        slip_angle_rr=slip_angle_rr,
-        combined_slip_fl=combined_slip_fl,
-        combined_slip_fr=combined_slip_fr,
-        combined_slip_rl=combined_slip_rl,
-        combined_slip_rr=combined_slip_rr,
         is_shifting=is_shifting,
     )
