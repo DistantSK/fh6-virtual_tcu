@@ -14,6 +14,8 @@ export const FEATURE_TOGGLES: FeatureToggle[] = [
   { key: 'feat_shift_advisor', i18nKey: 'shiftAdvisor', hintKey: 'shiftAdvisor' },
   { key: 'feat_engine_brake', i18nKey: 'engineBrake', hintKey: 'engineBrake' },
   { key: 'feat_power_curve', i18nKey: 'powerCurve', hintKey: 'powerCurve' },
+  { key: 'feat_crossover_upshift', i18nKey: 'crossoverUpshift', hintKey: 'crossoverUpshift' },
+  { key: 'feat_rev_blip', i18nKey: 'revBlip', hintKey: 'revBlip' },
   { key: 'feat_turbo_compensate', i18nKey: 'turboCompensate', hintKey: 'turboCompensate' },
   { key: 'feat_airtime_lock', i18nKey: 'airtimeLock', hintKey: 'airtimeLock' },
   { key: 'feat_transient_lock', i18nKey: 'transientLock', hintKey: 'transientLock' },
@@ -78,6 +80,8 @@ export const SETTING_SLIDERS: SliderDef[] = [
 export const HOTKEY_FIELDS = [
   { key: 'hotkey_cycle_mode', i18nKey: 'cycleMode', placeholder: 'f9' },
   { key: 'hotkey_snapshot', i18nKey: 'triggerSnapshot', placeholder: 'f8' },
+  { key: 'hotkey_crossover_relearn', i18nKey: 'crossoverRelearn', placeholder: 'f7' },
+  { key: 'hotkey_toggle_clutch', i18nKey: 'toggleClutch', placeholder: 'f10' },
 ] as const
 
 export const SHIFT_KEY_FIELDS = [
@@ -85,14 +89,26 @@ export const SHIFT_KEY_FIELDS = [
   { key: 'shift_key_down', i18nKey: 'shiftKeyDown', placeholder: 'q' },
 ] as const
 
+export const THROTTLE_KEY_FIELDS = [
+  { key: 'throttle_key', i18nKey: 'throttleKey', placeholder: 'w' },
+] as const
+
 export const CLUTCH_ASSIST_FIELDS = [
   { key: 'clutch_key', i18nKey: 'clutchKey', placeholder: 'shift' },
+] as const
+
+export const REV_BLIP_FIELDS = [
+  { key: 'blip_key', i18nKey: 'blipKey', placeholder: 'w' },
 ] as const
 
 export const CLUTCH_TIMING_SLIDERS: SliderDef[] = [
   { key: 'clutch_pre_ms', i18nKey: 'clutchPreMs', min: 0, max: 100, unit: 'raw' },
   { key: 'clutch_overlap_ms', i18nKey: 'clutchOverlapMs', min: 20, max: 100, unit: 'raw' },
   { key: 'clutch_release_ms', i18nKey: 'clutchReleaseMs', min: 0, max: 100, unit: 'raw' },
+]
+
+export const REV_BLIP_TIMING_SLIDERS: SliderDef[] = [
+  { key: 'blip_ms', i18nKey: 'blipMs', min: 0, max: 150, unit: 'raw' },
 ]
 
 export const NETWORK_FIELDS = [

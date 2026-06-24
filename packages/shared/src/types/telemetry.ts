@@ -73,4 +73,12 @@ export interface TelemetrySnapshot {
   watchdog_stuck?: boolean
   log_status?: LogStatus
   power_curve_learned?: boolean
+  crossover_relearning?: boolean
+  crossover_learned?: boolean
+  clutch_assist_enabled?: boolean
+  relearn_status?: 'learned' | 'aborted_moved' | 'timeout' | 'skipped' | null
+  relearn_status_rpm?: number | null
+  learn_mature_gears?: number
+  learn_target_gears?: number
+  learn_progress?: number
 }
