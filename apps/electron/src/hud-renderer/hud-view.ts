@@ -70,6 +70,16 @@ export function useHudView(
     return { color: '#ffffff' }
   })
 
+  const crossoverLearnState = computed<'learning' | 'learned' | 'relearning'>(() => {
+    if (telemetry.value.crossover_relearning) return 'relearning'
+    if (telemetry.value.crossover_learned) return 'learned'
+    return 'learning'
+  })
+  const relearnStatus = computed(() => telemetry.value.relearn_status ?? '')
+  const relearnStatusRpm = computed(() => Number(telemetry.value.relearn_status_rpm ?? 0))
+  const learnMatureGears = computed(() => telemetry.value.learn_mature_gears ?? 0)
+  const learnTargetGears = computed(() => telemetry.value.learn_target_gears ?? 0)
+
   return {
     gearLabel,
     speed,
@@ -85,6 +95,11 @@ export function useHudView(
     rpmBarColor,
     gearColor,
     gearStyle,
+    crossoverLearnState,
+    relearnStatus,
+    relearnStatusRpm,
+    learnMatureGears,
+    learnTargetGears,
   }
 }
 

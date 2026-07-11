@@ -37,6 +37,14 @@ class OutputInterface(ABC):
         """Trigger a shift to the specified gear (non-blocking)."""
         ...
 
+    def shift_no_clutch(self, from_gear: int, target_gear: int):
+        """Trigger a shift while bypassing clutch assistance.
+
+        Backends that cannot distinguish the two paths retain their normal
+        shift behavior; keyboard and vJoy override this for gearbox detection.
+        """
+        self.shift_to(from_gear, target_gear)
+
     @abstractmethod
     def shutdown(self):
         """Release any OS resources (thread pools, device handles, hooks)."""

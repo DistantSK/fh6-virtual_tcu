@@ -22,6 +22,13 @@
     brake: number
     shiftAdvice: ShiftAdvice
     showShiftAdvisor: boolean
+    crossoverLearnState: string
+    relearnStatus?: string
+    relearnStatusRpm?: number
+    learnMatureGears?: number
+    learnTargetGears?: number
+    clutchAssistEnabled?: boolean
+    transmissionType?: 'sequential' | 'clutch' | 'unknown'
   }>()
 
   const emit = defineEmits<{
@@ -63,6 +70,13 @@
         :mode-color="modeColor"
         :tcu-state="tcuState"
         :click-through="clickThrough"
+        :learn-state="crossoverLearnState"
+        :relearn-status="relearnStatus"
+        :relearn-status-rpm="relearnStatusRpm"
+        :learn-mature-gears="learnMatureGears"
+        :learn-target-gears="learnTargetGears"
+        :clutch-assist-enabled="clutchAssistEnabled"
+        :transmission-type="transmissionType"
         @toggle-click-through="emit('toggleClickThrough', $event)"
         @close="emit('close')"
       />

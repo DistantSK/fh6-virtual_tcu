@@ -11,8 +11,21 @@
       clickThrough: boolean
       compact?: boolean
       footer?: boolean
+      learnState?: string
+      learnMatureGears?: number
+      learnTargetGears?: number
+      relearnStatus?: string
+      relearnStatusRpm?: number
+      clutchAssistEnabled?: boolean
+      transmissionType?: 'sequential' | 'clutch' | 'unknown'
     }>(),
-    { compact: false, footer: false },
+    {
+      compact: false,
+      footer: false,
+      learnState: 'learning',
+      clutchAssistEnabled: false,
+      transmissionType: 'unknown',
+    },
   )
 
   const emit = defineEmits<{
@@ -22,6 +35,43 @@
 
   const { t } = useI18n()
   const modeLabel = computed(() => t(hudModeI18nKey(props.mode)))
+
+  const learnLabel = computed(() => {
+    if (props.learnState === 'relearning') return t('calibration.crossoverRelearning')
+    if (props.learnState === 'learned') return t('calibration.crossoverLearned')
+    const total = Number(props.learnTargetGears ?? 0)
+    const done = Number(props.learnMatureGears ?? 0)
+    return total > 0
+      ? t('calibration.crossoverProgress', { done, total })
+      : t('calibration.crossoverLearning')
+  })
+
+  const relearnLabel = computed(() => {
+    const status = props.relearnStatus
+    if (!status) return ''
+    if (status === 'learned') {
+      return t('calibration.relearnLearned', {
+        rpm: Math.round(Number(props.relearnStatusRpm ?? 0)),
+      })
+    }
+    if (status === 'aborted_moved') return t('calibration.relearnAbortedMoved')
+    if (status === 'timeout') return t('calibration.relearnTimeout')
+    return t('calibration.relearnSkipped')
+  })
+
+  const pillLabel = computed(() => relearnLabel.value || learnLabel.value)
+  const pillClass = computed(() => {
+    if (props.relearnStatus) return props.relearnStatus === 'learned' ? 'learned' : 'relearning'
+    return props.learnState
+  })
+
+  const transmissionLabel = computed(() => {
+    if (props.transmissionType === 'sequential') return 'SEQ'
+    if (props.transmissionType === 'clutch') return 'CLT'
+    return '-'
+  })
+
+  const transmissionClass = computed(() => `trans-${props.transmissionType ?? 'unknown'}`)
 </script>
 
 <template>
@@ -39,6 +89,23 @@
         }}</span>
       </template>
     </div>
+
+    <span class="learn-pill" :class="pillClass" :title="t('calibration.crossover')">
+      {{ pillLabel }}
+    </span>
+
+    <span
+      v-if="clutchAssistEnabled"
+      class="trans-pill"
+      :class="transmissionClass"
+      :title="t('calibration.transmission')"
+    >
+      {{ transmissionLabel }}
+    </span>
+
+    <span class="clutch-pill" :class="{ on: clutchAssistEnabled }">
+      CLUTCH {{ clutchAssistEnabled ? 'ON' : 'OFF' }}
+    </span>
 
     <div class="actions interactive">
       <button
@@ -109,6 +176,7 @@
     align-items: center;
     gap: 6px;
     min-width: 0;
+    flex: 1;
   }
 
   .mode-dot {
@@ -141,6 +209,64 @@
 
   .state-name.shifting {
     color: #c4b5fd;
+  }
+
+  .learn-pill,
+  .trans-pill,
+  .clutch-pill {
+    flex-shrink: 0;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    line-height: 1;
+    padding: 2px 7px;
+    border-radius: 5px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+
+  .learn-pill.learning {
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.14);
+    border-color: rgba(245, 158, 11, 0.4);
+  }
+
+  .learn-pill.learned,
+  .trans-pill.trans-sequential {
+    color: #4ade80;
+    background: rgba(34, 197, 94, 0.14);
+    border-color: rgba(34, 197, 94, 0.4);
+  }
+
+  .learn-pill.relearning {
+    color: #60a5fa;
+    background: rgba(59, 130, 246, 0.18);
+    border-color: rgba(59, 130, 246, 0.5);
+  }
+
+  .trans-pill.trans-clutch {
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.14);
+    border-color: rgba(245, 158, 11, 0.4);
+  }
+
+  .trans-pill.trans-unknown {
+    color: #64748b;
+    background: rgba(100, 116, 139, 0.12);
+    border-color: rgba(100, 116, 139, 0.32);
+  }
+
+  .clutch-pill {
+    font-weight: 700;
+    color: #94a3b8;
+    background: rgba(148, 163, 184, 0.12);
+    border-color: rgba(148, 163, 184, 0.32);
+  }
+
+  .clutch-pill.on {
+    color: #fb7185;
+    background: rgba(244, 63, 94, 0.16);
+    border-color: rgba(244, 63, 94, 0.48);
   }
 
   .actions {

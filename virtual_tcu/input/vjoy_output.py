@@ -81,6 +81,13 @@ class VJoyOutput(OutputInterface):
         return False
 
     def shift_to(self, from_gear: int, target_gear: int):
+        self._queue_shift(from_gear, target_gear, use_clutch=self.use_clutch)
+
+    def shift_no_clutch(self, from_gear: int, target_gear: int):
+        """Shift through vJoy without pressing the configured clutch button."""
+        self._queue_shift(from_gear, target_gear, use_clutch=False)
+
+    def _queue_shift(self, from_gear: int, target_gear: int, *, use_clutch: bool):
         # from_gear and target_gear must be 0-10
         if not (0 <= from_gear <= 10) or not (0 <= target_gear <= 10):
             print(f"[VJoy] invalid gear numbers: from {from_gear} to {target_gear}")
@@ -92,7 +99,10 @@ class VJoyOutput(OutputInterface):
             # fallback to SMG
             def _multi_shift():
                 for i in range(shifts_needed):
-                    self._press_release(self.key_up if target_gear > from_gear else self.key_down)
+                    self._press_release(
+                        self.key_up if target_gear > from_gear else self.key_down,
+                        use_clutch,
+                    )
                     if i < shifts_needed - 1:
                         time.sleep(0.06)
 
@@ -100,7 +110,7 @@ class VJoyOutput(OutputInterface):
         else:
             # 0 for reverse(B11), 1-10 for gears
             gear_btn = f"B{target_gear}" if target_gear > 0 else "B11"
-            self._executor.submit(self._press_release, gear_btn)
+            self._executor.submit(self._press_release, gear_btn, use_clutch)
 
     def shutdown(self):
         self._v_device.reset()
@@ -153,16 +163,17 @@ class VJoyOutput(OutputInterface):
 
     # -- internals -------------------------------------------------------------
 
-    def _press_release(self, name: str):
+    def _press_release(self, name: str, use_clutch: bool | None = None):
         """Press *name*, hold BUTTON_HOLD_S, release, and update the device."""
         btn = _BUTTON_MAP.get(name.upper())
         if btn is None:
             print(f"[VJoy] unknown button '{name}' - check config")
             return
-        clutch_btn = _BUTTON_MAP.get(self.key_clutch) if self.use_clutch else None
-        if self.use_clutch and clutch_btn is None:
+        clutch_enabled = self.use_clutch if use_clutch is None else use_clutch
+        clutch_btn = _BUTTON_MAP.get(self.key_clutch) if clutch_enabled else None
+        if clutch_enabled and clutch_btn is None:
             print(f"[VJoy] unknown clutch button '{self.key_clutch}' - shifting without clutch")
-        use_clutch = self.use_clutch and clutch_btn is not None
+        use_clutch = clutch_enabled and clutch_btn is not None
         try:
             if self.direct_shift:
                 self._v_device.reset_buttons()

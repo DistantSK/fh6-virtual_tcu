@@ -149,7 +149,17 @@ class TCULogic:
         self._profile_baseline_ratios: dict[tuple, dict[int, float]] = {}
         self._drift_streak: dict[tuple, dict[int, int]] = {}
         self._active_tune_signature: int | None = None
+        self._prev_base: tuple | None = None
         self._was_race_on = False
+
+        # Per-car transmission type learned from the first clutchless upshift.
+        # True = sequential/racing gearbox, False = clutch-required gearbox.
+        self._racing_transmission: dict[tuple, bool] = {}
+        self._detect_active: tuple | None = None
+        self._detect_total_frames = 0
+        self._detect_from_gear = 0
+        self._detect_gear_moved = False
+        self._detect_deadline = 0.0
 
         self._reverse_hold = ReverseHoldDetector(kb)
         self._calibrator = GearRatioCalibrator()
@@ -202,6 +212,8 @@ class TCULogic:
         rl = self._rev_limiter.dump(ck)
         if rl is not None:
             profile["rev_limiter"] = rl
+        if ck in self._racing_transmission:
+            profile["racing_transmission"] = self._racing_transmission[ck]
         if profile:
             from datetime import datetime
 
@@ -218,10 +230,15 @@ class TCULogic:
         base = car_key_base(td)
         if base[0] <= 0:
             return
+        prev_sig = self._active_tune_signature
+        prev_base = self._prev_base
         if base not in self._tune_id_by_base:
             self._tune_id_by_base[base] = td.tune_signature
         td.profile_tune_id = self._tune_id_by_base[base]
         self._active_tune_signature = td.tune_signature
+        self._prev_base = base
+        if prev_sig is not None and prev_sig != td.tune_signature and prev_base == base:
+            self._racing_transmission.pop(td.car_key, None)
 
     def _clear_learning_for_key(self, ck: tuple) -> None:
         self._calibrator._ratios.pop(ck, None)
@@ -239,13 +256,66 @@ class TCULogic:
         self._cap_confirm.pop(ck, None)
         self._max_gear_seen.pop(ck, None)
         self._gear_plateau_s.pop(ck, None)
+        self._racing_transmission.pop(ck, None)
 
     def _shift_to(self, from_gear: int, target_gear: int) -> None:
-        """Emit a shift unless a relearn fuel-cut blip is in progress (we hold
-        the engine against the limiter then, and must not auto-upshift)."""
+        """Emit a shift, detecting and bypassing clutch on racing gearboxes."""
         if self._relearn_blip_active:
             return
+
+        if not self._clutch_assist_enabled():
+            self._kb.shift_to(from_gear, target_gear)
+            return
+
+        ck = self._current_car_key
+        is_upshift = target_gear > from_gear
+        if ck is not None and ck[0] > 0:
+            trans_type = self._racing_transmission.get(ck)
+            if trans_type is None and is_upshift and self._detect_active is None:
+                print(f"[Shift] {from_gear}->{target_gear} - detect gearbox without clutch")
+                self._detect_active = ck
+                self._detect_total_frames = 0
+                self._detect_from_gear = from_gear
+                self._detect_gear_moved = False
+                self._detect_deadline = time.monotonic() + 2.0
+                self._kb.shift_no_clutch(from_gear, target_gear)
+                return
+            if trans_type is True:
+                self._kb.shift_no_clutch(from_gear, target_gear)
+                return
+
         self._kb.shift_to(from_gear, target_gear)
+
+    def _detect_transmission_frame(self, td: Telemetry) -> None:
+        """Classify a gearbox from the response to a clutchless upshift."""
+        if self._detect_active is None:
+            return
+
+        self._detect_total_frames += 1
+        if td.gear != self._detect_from_gear:
+            self._detect_gear_moved = True
+
+        if time.monotonic() > self._detect_deadline:
+            if not self._detect_gear_moved:
+                # The key may have been intercepted by IME or a focus change.
+                print(
+                    f"[TransDetect] retry - gear never moved ({self._detect_total_frames} frames)"
+                )
+                self._detect_active = None
+                return
+            ck = self._detect_active
+            self._racing_transmission[ck] = False
+            print(f"[TransDetect] clutch ({self._detect_total_frames} frames, timeout)")
+            self._detect_active = None
+            return
+
+        if 1 <= td.gear <= 10 and td.gear != self._detect_from_gear:
+            ck = self._detect_active
+            sequential = self._detect_total_frames <= 5
+            self._racing_transmission[ck] = sequential
+            label = "sequential" if sequential else "clutch"
+            print(f"[TransDetect] {label} ({self._detect_total_frames} frames)")
+            self._detect_active = None
 
     def reset_crossover_learning(self) -> bool:
         """Relearn the traction crossover-upshift model for the current car.
@@ -284,11 +354,18 @@ class TCULogic:
             self._cap_confirm.pop(ck, None)
             self._max_gear_seen.pop(ck, None)
             self._gear_plateau_s.pop(ck, None)
+            self._racing_transmission.pop(ck, None)
             # Persisted: strip the relearned blocks (incl. rev limiter) so they
             # don't reload; keep the rest of the profile (metadata).
             profile = self._profiles.get(ck)
             if isinstance(profile, dict):
-                for stale in ("gear_ratios", "gear_counts", "power_curve", "rev_limiter"):
+                for stale in (
+                    "gear_ratios",
+                    "gear_counts",
+                    "power_curve",
+                    "rev_limiter",
+                    "racing_transmission",
+                ):
                     profile.pop(stale, None)
                 self._profiles.set(ck, profile)
             self._crossover_relearn_until = time.monotonic() + CROSSOVER_RELEARN_FLASH_S
@@ -529,6 +606,8 @@ class TCULogic:
             self._power_curve.load(ck, data["power_curve"])
         if "rev_limiter" in data:
             self._rev_limiter.load(ck, data["rev_limiter"])
+        if "racing_transmission" in data:
+            self._racing_transmission[ck] = bool(data["racing_transmission"])
 
     def _split_tune_profile(self, td: Telemetry, reason: str) -> None:
         """Allocate a new tune_id slot when saved gear ratios no longer match the car."""
@@ -536,6 +615,7 @@ class TCULogic:
         old_ck = self._current_car_key
         if old_ck is not None:
             self.save_profiles()
+        old_trans = self._racing_transmission.get(old_ck) if old_ck is not None else None
         new_id = int(time.time())
         self._tune_id_by_base[base] = new_id
         td.profile_tune_id = new_id
@@ -543,6 +623,8 @@ class TCULogic:
         if old_ck is not None:
             self._clear_learning_for_key(old_ck)
         self._clear_learning_for_key(new_ck)
+        if old_trans is not None:
+            self._racing_transmission[new_ck] = old_trans
         self._current_car_key = new_ck
         print(
             f"[Profiles] new tune slot {storage_key(new_ck)} ({reason})"
@@ -725,6 +807,7 @@ class TCULogic:
                     "crossover_relearning": False,
                     "crossover_learned": False,
                     "clutch_assist_enabled": self._clutch_assist_enabled(),
+                    "transmission_type": "unknown",
                     "relearn_status": None,
                     "relearn_status_rpm": None,
                     "learn_mature_gears": 0,
@@ -774,6 +857,19 @@ class TCULogic:
                 "crossover_relearning": time.monotonic() < self._crossover_relearn_until,
                 "crossover_learned": crossover_learned,
                 "clutch_assist_enabled": self._clutch_assist_enabled(),
+                "transmission_type": (
+                    None
+                    if td.car_key[0] <= 0
+                    else (
+                        "sequential"
+                        if self._racing_transmission.get(td.car_key) is True
+                        else (
+                            "clutch"
+                            if self._racing_transmission.get(td.car_key) is False
+                            else "unknown"
+                        )
+                    )
+                ),
                 "relearn_status": (
                     self._relearn_status if time.monotonic() < self._relearn_status_until else None
                 ),
@@ -812,6 +908,7 @@ class TCULogic:
     def _process_internal(self, td: Telemetry, raw_packet: bytes | None):
         now = time.time()
         self._last_td = td
+        self._detect_transmission_frame(td)
 
         is_race_now = bool(td.is_race_on)
         self._was_race_on = is_race_now

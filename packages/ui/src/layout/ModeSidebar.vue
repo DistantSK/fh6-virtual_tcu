@@ -82,6 +82,20 @@
       ? t('calibration.crossoverProgress', { done, total })
       : t('calibration.crossoverLearning')
   }
+
+  const transmissionBadge = () => {
+    const type = telemetry.value?.transmission_type
+    if (type === 'sequential') return 'text-success bg-success/10 border-success/30'
+    if (type === 'clutch') return 'text-warn bg-warn/10 border-warn/30'
+    return 'text-tcu-txt-dim bg-tcu-bg-3 border-tcu-border'
+  }
+
+  const transmissionText = () => {
+    const type = telemetry.value?.transmission_type
+    if (type === 'sequential') return t('calibration.transTypeSequential')
+    if (type === 'clutch') return t('calibration.transTypeClutch')
+    return t('calibration.transTypeUnknown')
+  }
 </script>
 
 <template>
@@ -141,6 +155,18 @@
       <div class="border-tcu-border mt-2.5 flex items-center justify-between gap-2 border-t pt-2.5">
         <span class="text-tcu-txt-muted text-[11px]">{{ $t('calibration.crossover') }}</span>
         <span :class="crossoverBadge()">{{ crossoverText() }}</span>
+      </div>
+      <div
+        v-if="telemetry?.clutch_assist_enabled"
+        class="mt-2 flex items-center justify-between gap-2"
+      >
+        <span class="text-tcu-txt-muted text-[11px]">{{ $t('calibration.transmission') }}</span>
+        <span
+          class="rounded-full border px-2.5 py-0.5 text-[10px] font-bold"
+          :class="transmissionBadge()"
+        >
+          {{ transmissionText() }}
+        </span>
       </div>
     </div>
 

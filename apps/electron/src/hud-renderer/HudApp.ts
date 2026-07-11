@@ -14,6 +14,8 @@ export function useHudApp() {
   const telemetry = ref<Partial<TelemetrySnapshot>>({})
   const clickThrough = ref(false)
   const hudTemplate = ref<HudTemplateId>('classic')
+  const clutchAssistEnabled = ref(false)
+  const transmissionType = ref<'sequential' | 'clutch' | 'unknown'>('unknown')
 
   let ws: WebSocket | null = null
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -31,6 +33,10 @@ export function useHudApp() {
     if (!config) return
     if ('hud_template' in config) {
       hudTemplate.value = normalizeHudTemplate(config.hud_template)
+    }
+    if ('feat_clutch_assist' in config || 'vjoy_use_clutch' in config) {
+      clutchAssistEnabled.value =
+        Boolean(config.feat_clutch_assist) || Boolean(config.vjoy_use_clutch)
     }
   }
 
@@ -81,6 +87,12 @@ export function useHudApp() {
             break
           case 'telemetry':
             telemetry.value = msg.data ?? {}
+            if (typeof msg.data?.clutch_assist_enabled === 'boolean') {
+              clutchAssistEnabled.value = msg.data.clutch_assist_enabled
+            }
+            if (msg.data?.transmission_type) {
+              transmissionType.value = msg.data.transmission_type
+            }
             break
           case 'state':
             if (msg.data?.mode) mode.value = msg.data.mode
@@ -144,6 +156,13 @@ export function useHudApp() {
     shiftAdvice: view.shiftAdvice.value,
     showShiftAdvisor: view.showShiftAdvisor.value,
     showShiftBanner: view.showShiftBanner.value,
+    crossoverLearnState: view.crossoverLearnState.value,
+    relearnStatus: view.relearnStatus.value,
+    relearnStatusRpm: view.relearnStatusRpm.value,
+    learnMatureGears: view.learnMatureGears.value,
+    learnTargetGears: view.learnTargetGears.value,
+    clutchAssistEnabled: clutchAssistEnabled.value,
+    transmissionType: transmissionType.value,
   }))
 
   useHudWindowSync({

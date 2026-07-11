@@ -122,6 +122,29 @@ class KeyboardOutput(OutputInterface):
 
             self._executor.submit(_multi_shift)
 
+    def shift_no_clutch(self, from_gear: int, target_gear: int):
+        """Shift without clutch, retaining the configured downshift blip."""
+        if not (0 <= from_gear <= 10) or not (0 <= target_gear <= 10):
+            print(f"[Keyboard] invalid gear numbers: from {from_gear} to {target_gear}")
+            return
+        if from_gear == target_gear:
+            return
+
+        shifts_needed = abs(target_gear - from_gear)
+        shift_key = self.key_up if target_gear > from_gear else self.key_down
+        is_downshift = target_gear < from_gear
+
+        def _multi_shift():
+            for i in range(shifts_needed):
+                if is_downshift and self.use_rev_blip:
+                    self._press_release_with_blip(shift_key)
+                else:
+                    self._press_release(shift_key)
+                if i < shifts_needed - 1:
+                    time.sleep(0.06)
+
+        self._executor.submit(_multi_shift)
+
     def shutdown(self):
         self._executor.shutdown(wait=False)
 

@@ -15,13 +15,13 @@ import pytest
 
 sys.modules.setdefault("keyboard", MagicMock())
 
-import virtual_tcu.logic.tcu as tcu_module
-from virtual_tcu.config.store import ConfigStore
-from virtual_tcu.input.interface import OutputInterface
-from virtual_tcu.logic.tcu import TCULogic
-from virtual_tcu.storage.profiles import ProfileStore
-from virtual_tcu.telemetry.logger import TelemetryLogger
-from virtual_tcu.telemetry.model import Telemetry
+import virtual_tcu.logic.tcu as tcu_module  # noqa: E402
+from virtual_tcu.config.store import ConfigStore  # noqa: E402
+from virtual_tcu.input.interface import OutputInterface  # noqa: E402
+from virtual_tcu.logic.tcu import TCULogic  # noqa: E402
+from virtual_tcu.storage.profiles import ProfileStore  # noqa: E402
+from virtual_tcu.telemetry.logger import TelemetryLogger  # noqa: E402
+from virtual_tcu.telemetry.model import Telemetry  # noqa: E402
 
 CAR_KEY_BASE = (100, 5, 800)
 
@@ -43,6 +43,7 @@ class FakeOutput(OutputInterface):
 
     def __init__(self):
         self.shifts: list[tuple[str, float]] = []
+        self.no_clutch_shifts: list[tuple[int, int]] = []
         self.now = 0.0
 
     @property
@@ -63,6 +64,9 @@ class FakeOutput(OutputInterface):
             self.shifts.append(("DOWN2", self.now))
         else:
             self.shifts.append(("DOWN", self.now))
+
+    def shift_no_clutch(self, from_gear: int, target_gear: int):
+        self.no_clutch_shifts.append((from_gear, target_gear))
 
     def shutdown(self):
         pass

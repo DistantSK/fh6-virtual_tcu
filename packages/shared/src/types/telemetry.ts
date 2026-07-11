@@ -76,6 +76,7 @@ export interface TelemetrySnapshot {
   crossover_relearning?: boolean
   crossover_learned?: boolean
   clutch_assist_enabled?: boolean
+  transmission_type?: 'sequential' | 'clutch' | 'unknown'
   relearn_status?: 'learned' | 'aborted_moved' | 'timeout' | 'skipped' | null
   relearn_status_rpm?: number | null
   learn_mature_gears?: number
