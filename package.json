@@ -1,7 +1,8 @@
 {
   "name": "virtual-tcu-monorepo",
   "type": "module",
-  "version": "13.8.0",
+  "version": "13.9.1",
+  "main": "apps/electron/out/main/index.js",
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "engines": {
@@ -22,6 +23,15 @@
     "format:py": "ruff format virtual_tcu virtual_tcu.py",
     "test:py": "pytest",
     "prepare": "husky && node scripts/sync-version.mjs"
+  },
+  "dependencies": {
+    "@electron-toolkit/utils": "^4.0.0",
+    "@vicons/ionicons5": "^0.13.0",
+    "electron-updater": "^6.8.6",
+    "naive-ui": "^2.44.1",
+    "semver": "^7.7.4",
+    "vue": "^3.5.13",
+    "vue-i18n": "^11.1.2"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^4.11.0",

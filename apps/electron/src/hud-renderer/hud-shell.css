@@ -129,7 +129,7 @@
 .hud-root.click-through.tpl-minimal-shell .gear-lbl,
 .hud-root.click-through .rpm-num,
 .hud-root.click-through .rpm-unit,
-.hud-root.click-through .scale-8,
+.hud-root.click-through .scale-10,
 .hud-root.click-through .speed-num,
 .hud-root.click-through .speed-unit,
 .hud-root.click-through .gear,
@@ -144,25 +144,25 @@
 
 .hud-root.click-through .btn,
 .hud-root.click-through .icon-btn {
-  background: rgba(0, 0, 0, 0.45);
-  border-color: rgba(255, 255, 255, 0.35);
+  background: transparent;
+  border-color: transparent;
   color: #ffffff;
   opacity: 1;
-  box-shadow:
-    0 0 0 1px rgba(0, 0, 0, 0.6),
-    0 2px 8px rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(4px);
+  box-shadow: none;
+  backdrop-filter: none;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.95));
 }
 
 .hud-root.click-through .btn:hover,
 .hud-root.click-through .icon-btn:hover {
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.28);
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 .hud-root.click-through .btn.active,
 .hud-root.click-through .icon-btn.active {
-  background: rgba(255, 255, 255, 0.22);
-  border-color: rgba(255, 255, 255, 0.65);
+  background: transparent;
+  border-color: transparent;
   color: #ffffff;
 }
 

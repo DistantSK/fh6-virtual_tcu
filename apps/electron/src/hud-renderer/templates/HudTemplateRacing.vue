@@ -3,7 +3,6 @@
   import HudChrome from '../HudChrome.vue'
   import HudPedalGauge from '../HudPedalGauge.vue'
   import HudRpmSegments from '../HudRpmSegments.vue'
-  import HudShiftHints from '../HudShiftHints.vue'
 
   defineProps<{
     mode: string
@@ -51,9 +50,35 @@
       </div>
 
       <div class="col gear-col">
-        <HudShiftHints :advice="shiftAdvice" :show="showShiftAdvisor" size="lg">
-          <div class="gear" :style="gearStyle">{{ gearLabel }}</div>
-        </HudShiftHints>
+        <div class="gear" :style="gearStyle">{{ gearLabel }}</div>
+        <div
+          class="gear-advice"
+          :class="{
+            active: showShiftAdvisor && (shiftAdvice === 'up' || shiftAdvice === 'down'),
+            up: shiftAdvice === 'up',
+            down: shiftAdvice === 'down',
+          }"
+          aria-hidden="true"
+        >
+          <svg
+            v-if="showShiftAdvisor && shiftAdvice === 'up'"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+          >
+            <path d="M12 19V5M6 11l6-6 6 6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <svg
+            v-else-if="showShiftAdvisor && shiftAdvice === 'down'"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+          >
+            <path d="M12 5v14M6 13l6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </div>
       </div>
 
       <div class="col pedals-col">
@@ -96,6 +121,7 @@
 
   .gear-col {
     align-items: center;
+    min-height: 76px;
   }
 
   .pedals-col {
@@ -128,6 +154,37 @@
     letter-spacing: -0.04em;
     min-width: 72px;
     text-align: center;
+  }
+
+  .gear-advice {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 16px;
+    margin-top: -2px;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .gear-advice svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .gear-advice.active {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .gear-advice.up {
+    color: #22c55e;
+    filter: drop-shadow(0 0 5px rgba(34, 197, 94, 0.55));
+  }
+
+  .gear-advice.down {
+    color: #eab308;
+    filter: drop-shadow(0 0 5px rgba(234, 179, 8, 0.55));
   }
 
   .status-spacer {
