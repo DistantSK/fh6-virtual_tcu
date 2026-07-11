@@ -1,6 +1,6 @@
 <script setup lang="ts">
   import { computed } from 'vue'
-  import { buildRpmSegments } from './hud-rpm-segments'
+  import { buildRpmScaleTicks, buildRpmSegments } from './hud-rpm-segments'
 
   const props = withDefaults(
     defineProps<{
@@ -19,13 +19,13 @@
   )
 
   const items = computed(() => buildRpmSegments(props.rpmPct, props.segments))
-  const ticks10 = computed(() => Array.from({ length: 10 }, (_, i) => String(i + 1)))
+  const ticks8 = computed(() => buildRpmScaleTicks(8, props.rpmMax))
 </script>
 
 <template>
   <div class="rpm-segments" :class="`variant-${variant}`">
-    <div v-if="variant === 'bar8' && showScale" class="scale-10">
-      <span v-for="t in ticks10" :key="t">{{ t }}</span>
+    <div v-if="variant === 'bar8' && showScale" class="scale-8">
+      <span v-for="(t, i) in ticks8" :key="i">{{ t }}</span>
     </div>
     <div
       class="seg-row"
@@ -47,7 +47,7 @@
     width: 100%;
   }
 
-  .scale-10 {
+  .scale-8 {
     display: flex;
     justify-content: space-between;
     font-size: 9px;

@@ -1,13 +1,22 @@
-# VirtualTCU 13.9.1 修改日志
+# VirtualTCU 13.9.2 修改日志
 
 > 基于上游 [fh6-virtual_tcu_evolution](https://github.com/qq00qq00/fh6-virtual_tcu_evolution) v13.7.x 修改。
 > [查看原版 README](README_ORIGINAL.md)
 
 ---
 
+## 13.9.2 更新
+
+- 同步原版 `Forza-Love/fh6-virtual_tcu` PR #66 的 HUD 转速刻度修复。
+- 赛车 HUD 横条转速刻度恢复按车辆红线动态计算，并去除重复刻度，避免长时间遥测后 Vue 重复 key 导致刻度 DOM 异常。
+- 弧形转速表和横条转速表刻度列表均改用稳定 index key。
+- 新增 `test:hud` 测试，覆盖 4000-10000 rpm 红线刻度去重逻辑。
+
+---
+
 ## 13.9.1 更新
 
-- 修复赛车 HUD 横条转速刻度跑动时变成不稳定刻度的问题，固定显示为 `1-10`。
+- 修复赛车 HUD 横条转速刻度跑动时变成不稳定刻度的问题。
 - 修复 2 号赛车 HUD 档位显示被换挡提示图标影响的问题，档位数字和换挡提示分离显示。
 - 修复透明/穿透模式下 HUD 控制按钮仍有灰色背景的问题。
 - 自动更新源和 GitHub 链接切换到 `DistantSK/fh6-virtual_tcu`。

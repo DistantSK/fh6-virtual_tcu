@@ -1,7 +1,7 @@
 {
   "name": "virtual-tcu",
   "productName": "VirtualTCU",
-  "version": "13.9.1",
+  "version": "13.9.2",
   "private": true,
   "description": "External adaptive transmission controller for Forza Horizon 6 — Electron shell",
   "author": "Virtual TCU",
@@ -20,7 +20,8 @@
     "package": "electron-vite build && cd ../.. && npx electron-builder --win --publish never --config electron-builder.yml",
     "release": "electron-vite build && cd ../.. && npx electron-builder --win --publish always --config electron-builder.yml",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test:hud": "node --experimental-strip-types src/hud-renderer/hud-rpm-segments.test.mjs"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
