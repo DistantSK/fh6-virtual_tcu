@@ -94,12 +94,7 @@
       {{ pillLabel }}
     </span>
 
-    <span
-      v-if="clutchAssistEnabled"
-      class="trans-pill"
-      :class="transmissionClass"
-      :title="t('calibration.transmission')"
-    >
+    <span class="trans-pill" :class="transmissionClass" :title="t('calibration.transmission')">
       {{ transmissionLabel }}
     </span>
 

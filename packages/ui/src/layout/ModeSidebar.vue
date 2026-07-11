@@ -156,10 +156,7 @@
         <span class="text-tcu-txt-muted text-[11px]">{{ $t('calibration.crossover') }}</span>
         <span :class="crossoverBadge()">{{ crossoverText() }}</span>
       </div>
-      <div
-        v-if="telemetry?.clutch_assist_enabled"
-        class="mt-2 flex items-center justify-between gap-2"
-      >
+      <div class="mt-2 flex items-center justify-between gap-2">
         <span class="text-tcu-txt-muted text-[11px]">{{ $t('calibration.transmission') }}</span>
         <span
           class="rounded-full border px-2.5 py-0.5 text-[10px] font-bold"

@@ -1,7 +1,15 @@
-# VirtualTCU 13.9.3 修改日志
+# VirtualTCU 13.9.4 修改日志
 
 > 基于上游 [fh6-virtual_tcu_evolution](https://github.com/qq00qq00/fh6-virtual_tcu_evolution) v13.7.x 修改。
 > [查看原版 README](README_ORIGINAL.md)
+
+---
+
+## 13.9.4 更新
+
+- 修复 `CLUTCH OFF` 时悬浮窗变速箱类型标签被隐藏的问题。
+- 变速箱类型现在始终显示：已识别为 `SEQ` / `CLT`，未识别为 `-`。
+- Web UI 侧栏的换挡方式同样改为始终显示。
 
 ---
 
