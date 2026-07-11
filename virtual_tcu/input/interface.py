@@ -51,8 +51,8 @@ class OutputInterface(ABC):
     def begin_relearn_blip(self, throttle_key: str, clutch_key: str) -> None:
         """Engage clutch then floor throttle so the engine free-revs to the
         fuel cut. Held until end_relearn_blip(). No-op unless supported."""
-        ...
+        return None
 
     def end_relearn_blip(self) -> None:
         """Release the throttle and clutch held by begin_relearn_blip()."""
-        ...
+        return None
