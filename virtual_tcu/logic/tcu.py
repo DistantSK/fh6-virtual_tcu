@@ -58,6 +58,8 @@ LEARN_CONF_FLOOR = 0.5
 # without reaching a higher gear, and only at/above LEARN_MIN_TOP_FALLBACK.
 LEARN_PLATEAU_S = 30.0
 LEARN_MIN_TOP_FALLBACK = 4
+# Ignore drivetrain transients after Forza leaves its explicit mid-shift state.
+LEARNING_POST_SHIFT_SETTLE_S = 0.45
 
 
 class TCULogic:
@@ -116,6 +118,7 @@ class TCULogic:
         self._last_upshift_time = 0.0
         self._last_packet_time = 0.0
         self._prev_gear = -1
+        self._learning_block_until = 0.0
         self._we_shifted = False
         self._pending_upshift_from: int | None = None
         self._pending_upshift_until = 0.0
@@ -243,8 +246,7 @@ class TCULogic:
             self._racing_transmission.pop(td.car_key, None)
 
     def _clear_learning_for_key(self, ck: tuple) -> None:
-        self._calibrator._ratios.pop(ck, None)
-        self._calibrator._counts.pop(ck, None)
+        self._calibrator.clear(ck)
         self._power_curve._fits.pop(ck, None)
         self._power_curve._max_r.pop(ck, None)
         self._power_curve._min_r.pop(ck, None)
@@ -335,8 +337,7 @@ class TCULogic:
             if self._relearn_blip_active:
                 return False
             # In-memory: drop the crossover inputs and the caps derived from them.
-            self._calibrator._ratios.pop(ck, None)
-            self._calibrator._counts.pop(ck, None)
+            self._calibrator.clear(ck)
             self._power_curve._fits.pop(ck, None)
             self._power_curve._max_r.pop(ck, None)
             self._power_curve._min_r.pop(ck, None)
@@ -579,10 +580,11 @@ class TCULogic:
                 ck,
                 {"ratios": data["gear_ratios"], "counts": data.get("gear_counts", {})},
             )
-            ratios = data["gear_ratios"]
-            counts = data.get("gear_counts", {}) or {}
+            ratios = self._calibrator.get_ratios(ck)
+            counts = self._calibrator.gear_sample_counts(ck)
             # Baseline = every well-sampled saved gear ratio, keyed by int gear.
-            # JSON keys may be strings; normalise both ratios and counts.
+            # GearRatioCalibrator.load has already removed malformed, reversed,
+            # or transition-frame ratios; never retain those as drift baselines.
             baseline: dict[int, float] = {}
             for gk, gv in ratios.items():
                 try:
@@ -592,7 +594,7 @@ class TCULogic:
                     continue
                 if rv <= 0:
                     continue
-                n = counts.get(gk, counts.get(str(g), counts.get(g, 0)))
+                n = counts.get(g, 0)
                 try:
                     n = int(n)
                 except (TypeError, ValueError):
@@ -653,6 +655,8 @@ class TCULogic:
         # the filtered ratio would never move and the drift would stay invisible.
         if (
             td.is_shifting
+            or time.time() < self._learning_block_until
+            or td.clutch_raw > GearRatioCalibrator.CLUTCH_INPUT_THRESHOLD
             or td.speed_kmh < GearRatioCalibrator.MIN_SPEED_KMH
             or td.current_rpm <= 0
             or td.throttle < 0.45
@@ -931,6 +935,7 @@ class TCULogic:
             self._slip_streak = 0
             self._pending_upshift_from = None
             self._pending_upshift_until = 0.0
+            self._learning_block_until = now + 0.25
             self._last_hard_brake_time = 0.0
             self._brake_history.clear()
             self._throttle_history.clear()
@@ -948,18 +953,28 @@ class TCULogic:
         self._resolve_pending_upshift(td, now)
 
         if td.is_shifting:
+            self._learning_block_until = max(
+                self._learning_block_until,
+                now + LEARNING_POST_SHIFT_SETTLE_S,
+            )
             self._tcu_state = "SHIFTING"
             self._tcu_state_sub = "Forza mid-shift"
             return
 
         if td.gear != self._prev_gear and 1 <= td.gear <= 10 and 1 <= self._prev_gear <= 10:
+            self._learning_block_until = max(
+                self._learning_block_until,
+                now + LEARNING_POST_SHIFT_SETTLE_S,
+            )
             if td.gear > self._prev_gear:
+                self._last_upshift_time = now
                 self._upshift_cap_by_key[td.car_key] = 10
                 self._upshift_cap_set_at.pop(td.car_key, None)
                 self._upshift_fail_count.pop(td.car_key, None)
                 self._pending_upshift_from = None
                 self._pending_upshift_until = 0.0
             else:
+                self._last_downshift_time = now
                 # A real downshift proves any cap behind us is stale. Restart
                 # probing from a clean state when power demand returns.
                 self._upshift_cap_by_key[td.car_key] = 10
@@ -1021,7 +1036,12 @@ class TCULogic:
         self._update_turbo(td, dt)
         self._update_attitude(td)
         self._sync_profile_tune_id(td)
-        self._calibrator.observe(td)
+        learning_stable = (
+            now >= self._learning_block_until
+            and td.clutch_raw <= GearRatioCalibrator.CLUTCH_INPUT_THRESHOLD
+        )
+        if learning_stable:
+            self._calibrator.observe(td)
 
         self._rev_limiter.observe(
             td,
@@ -1030,7 +1050,7 @@ class TCULogic:
             last_upshift_time=self._last_upshift_time,
         )
 
-        if self._config.get("feat_power_curve"):
+        if self._config.get("feat_power_curve") and learning_stable:
             self._power_curve.observe(td)
         if self._config.get("feat_airtime_lock"):
             air = self._airtime.update(td, now)

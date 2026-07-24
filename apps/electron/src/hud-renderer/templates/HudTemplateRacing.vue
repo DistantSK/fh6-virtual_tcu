@@ -39,22 +39,6 @@
 
 <template>
   <div class="tpl-racing">
-    <HudChrome
-      :mode="mode"
-      :mode-color="modeColor"
-      :tcu-state="tcuState"
-      :click-through="clickThrough"
-      :learn-state="crossoverLearnState"
-      :relearn-status="relearnStatus"
-      :relearn-status-rpm="relearnStatusRpm"
-      :learn-mature-gears="learnMatureGears"
-      :learn-target-gears="learnTargetGears"
-      :clutch-assist-enabled="clutchAssistEnabled"
-      :transmission-type="transmissionType"
-      @toggle-click-through="emit('toggleClickThrough', $event)"
-      @close="emit('close')"
-    />
-
     <HudRpmSegments :rpm-pct="rpmPct" :rpm-max="rpmMax" :segments="16" variant="bar8" />
 
     <div class="dash-row">
@@ -103,7 +87,24 @@
 
     <div v-if="!connected" class="hud-status warn">backend offline</div>
     <div v-else-if="!live" class="hud-status dim">awaiting telemetry…</div>
-    <div v-else class="status-spacer" aria-hidden="true" />
+
+    <HudChrome
+      stacked
+      footer
+      :mode="mode"
+      :mode-color="modeColor"
+      :tcu-state="tcuState"
+      :click-through="clickThrough"
+      :learn-state="crossoverLearnState"
+      :relearn-status="relearnStatus"
+      :relearn-status-rpm="relearnStatusRpm"
+      :learn-mature-gears="learnMatureGears"
+      :learn-target-gears="learnTargetGears"
+      :clutch-assist-enabled="clutchAssistEnabled"
+      :transmission-type="transmissionType"
+      @toggle-click-through="emit('toggleClickThrough', $event)"
+      @close="emit('close')"
+    />
   </div>
 </template>
 
@@ -111,8 +112,8 @@
   .tpl-racing {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    width: 430px;
+    gap: 8px;
+    width: 350px;
   }
 
   .dash-row {
@@ -199,9 +200,5 @@
   .gear-advice.down {
     color: #eab308;
     filter: drop-shadow(0 0 5px rgba(234, 179, 8, 0.55));
-  }
-
-  .status-spacer {
-    min-height: 12px;
   }
 </style>

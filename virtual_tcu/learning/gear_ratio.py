@@ -12,6 +12,9 @@ class GearRatioCalibrator:
     OUTLIER_TOLERANCE = 0.18
     LEARN_RATE = 0.08
     OUTLIER_GRACE = 5  # samples before outlier rejection kicks in
+    INITIAL_STABLE_SAMPLES = 3
+    INITIAL_STABILITY_TOLERANCE = 0.08
+    CLUTCH_INPUT_THRESHOLD = 20
     # Reject samples that would collapse spacing between adjacent gears.
     ORDER_TOLERANCE = 0.03
     # Plausible rpm-per-km/h envelope for a valid gear-ratio sample. The lower
@@ -26,6 +29,7 @@ class GearRatioCalibrator:
     def __init__(self):
         self._ratios: dict[tuple, dict[int, float]] = {}
         self._counts: dict[tuple, dict[int, int]] = {}
+        self._candidates: dict[tuple, dict[int, list[float]]] = {}
 
     @staticmethod
     def _is_driven_sample(td: Telemetry) -> bool:
@@ -37,10 +41,8 @@ class GearRatioCalibrator:
             return False
         return True
 
-    def _order_ok(self, car_ratios: dict[int, float], gear: int, ratio: float, n: int) -> bool:
+    def _order_ok(self, car_ratios: dict[int, float], gear: int, ratio: float) -> bool:
         """Higher gears must have a lower rpm/kmh ratio than lower gears."""
-        if n < self.OUTLIER_GRACE:
-            return True
         tol = self.ORDER_TOLERANCE
         lower = car_ratios.get(gear - 1)
         if lower is not None and ratio >= lower * (1.0 - tol):
@@ -55,6 +57,8 @@ class GearRatioCalibrator:
         if ck[0] <= 0 or td.gear < 1 or td.gear > 10:
             return
         if td.is_shifting:
+            return
+        if td.clutch_raw > self.CLUTCH_INPUT_THRESHOLD:
             return
         if td.speed_kmh < self.MIN_SPEED_KMH or td.current_rpm <= 0:
             return
@@ -72,8 +76,21 @@ class GearRatioCalibrator:
         gear = td.gear
 
         if gear not in car_ratios:
-            car_ratios[gear] = ratio
-            car_counts[gear] = 1
+            candidates = self._candidates.setdefault(ck, {}).setdefault(gear, [])
+            if candidates and abs(ratio - candidates[-1]) / candidates[-1] > (
+                self.INITIAL_STABILITY_TOLERANCE
+            ):
+                candidates.clear()
+            candidates.append(ratio)
+            if len(candidates) < self.INITIAL_STABLE_SAMPLES:
+                return
+            initial = sum(candidates) / len(candidates)
+            if not self._order_ok(car_ratios, gear, initial):
+                candidates.clear()
+                return
+            car_ratios[gear] = initial
+            car_counts[gear] = len(candidates)
+            self._candidates[ck].pop(gear, None)
             return
 
         current = car_ratios[gear]
@@ -83,7 +100,7 @@ class GearRatioCalibrator:
         if n >= self.OUTLIER_GRACE:
             if abs(ratio - current) / current > self.OUTLIER_TOLERANCE:
                 return
-        if not self._order_ok(car_ratios, gear, ratio, n):
+        if not self._order_ok(car_ratios, gear, ratio):
             return
         # Running mean: true average early, stable low-pass once mature
         rate = max(self.LEARN_RATE, 1.0 / (n + 1))
@@ -102,6 +119,11 @@ class GearRatioCalibrator:
     def get_ratios(self, car_key: tuple) -> dict[int, float]:
         """Public accessor — learned rpm/kmh ratios for a car, or empty."""
         return self._ratios.get(car_key, {})
+
+    def clear(self, car_key: tuple) -> None:
+        self._ratios.pop(car_key, None)
+        self._counts.pop(car_key, None)
+        self._candidates.pop(car_key, None)
 
     def has_data(self, car_key: tuple) -> bool:
         return car_key in self._ratios and len(self._ratios[car_key]) >= 2
@@ -136,9 +158,38 @@ class GearRatioCalibrator:
         """Restore ratios from a previously-saved dump."""
         if not isinstance(data, dict):
             return
+        self._candidates.pop(car_key, None)
         ratios = data.get("ratios")
         counts = data.get("counts")
         if isinstance(ratios, dict):
-            self._ratios[car_key] = {int(k): float(v) for k, v in ratios.items()}
-        if isinstance(counts, dict):
-            self._counts[car_key] = {int(k): int(v) for k, v in counts.items()}
+            parsed: dict[int, float] = {}
+            for key, value in ratios.items():
+                try:
+                    gear = int(key)
+                    ratio = float(value)
+                except (TypeError, ValueError):
+                    continue
+                if (
+                    1 <= gear <= 10
+                    and self.RATIO_MIN_RPM_PER_KMH <= ratio <= self.RATIO_MAX_RPM_PER_KMH
+                ):
+                    parsed[gear] = ratio
+
+            # A transition frame saved against the destination gear commonly
+            # leaves adjacent ratios equal or reversed. Drop only the suspect
+            # gear so clean neighbours survive and the missing slot relearns.
+            clean: dict[int, float] = {}
+            for gear in sorted(parsed):
+                ratio = parsed[gear]
+                if self._order_ok(clean, gear, ratio):
+                    clean[gear] = ratio
+            self._ratios[car_key] = clean
+
+            parsed_counts = counts if isinstance(counts, dict) else {}
+            self._counts[car_key] = {}
+            for gear in clean:
+                raw_count = parsed_counts.get(gear, parsed_counts.get(str(gear), 0))
+                try:
+                    self._counts[car_key][gear] = max(0, int(raw_count))
+                except (TypeError, ValueError):
+                    self._counts[car_key][gear] = 0

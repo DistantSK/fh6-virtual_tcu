@@ -20,6 +20,7 @@ const READY_TIMEOUT_MS = 30_000
 const STOP_TIMEOUT_MS = 5_000
 const HEALTH_POLL_MS = 200
 const PORT_RELEASE_MS = 300
+const PROCESS_EXIT_POLL_MS = 50
 
 type BackendPhase = 'idle' | 'starting' | 'ready' | 'stopping'
 
@@ -67,11 +68,32 @@ async function probeBackendHttp(url: string): Promise<boolean> {
 
 async function killBackendProcess(pid: number, proc?: ChildProcess | null): Promise<void> {
   if (process.platform === 'win32') {
-    try {
-      await execFileAsync('taskkill', ['/F', '/T', '/PID', String(pid)], { windowsHide: true })
-    } catch {
-      // Process already exited.
+    const killTree = async () => {
+      try {
+        await execFileAsync('taskkill', ['/F', '/T', '/PID', String(pid)], { windowsHide: true })
+      } catch {
+        // Process already exited.
+      }
     }
+
+    const waitForExit = async () => {
+      for (let attempt = 0; attempt < 20; attempt++) {
+        try {
+          process.kill(pid, 0)
+        } catch {
+          return true
+        }
+        await sleep(PROCESS_EXIT_POLL_MS)
+      }
+      return false
+    }
+
+    await killTree()
+    if (await waitForExit()) return
+
+    // taskkill can return before a busy PyInstaller child has fully exited.
+    await killTree()
+    await waitForExit()
     return
   }
 

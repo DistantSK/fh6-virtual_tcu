@@ -11,6 +11,7 @@
       clickThrough: boolean
       compact?: boolean
       footer?: boolean
+      stacked?: boolean
       learnState?: string
       learnMatureGears?: number
       learnTargetGears?: number
@@ -22,6 +23,7 @@
     {
       compact: false,
       footer: false,
+      stacked: false,
       learnState: 'learning',
       clutchAssistEnabled: false,
       transmissionType: 'unknown',
@@ -75,34 +77,71 @@
 </script>
 
 <template>
-  <div class="hud-chrome" :class="{ compact, footer, interactive: clickThrough }">
-    <div class="meta">
-      <span
-        class="mode-dot"
-        :style="{ background: modeColor, boxShadow: `0 0 10px ${modeColor}88` }"
-      />
-      <span class="mode-name" :style="{ color: modeColor }">{{ modeLabel }}</span>
-      <template v-if="!compact">
-        <span class="sep" aria-hidden="true">·</span>
-        <span class="state-name" :class="{ shifting: tcuState === 'SHIFTING' }">{{
-          tcuState
-        }}</span>
-      </template>
+  <div class="hud-chrome" :class="{ compact, footer, stacked, interactive: clickThrough }">
+    <div class="chrome-primary">
+      <div class="meta">
+        <span
+          class="mode-dot"
+          :style="{ background: modeColor, boxShadow: `0 0 10px ${modeColor}88` }"
+        />
+        <span class="mode-name" :style="{ color: modeColor }">{{ modeLabel }}</span>
+        <template v-if="!compact">
+          <span class="sep" aria-hidden="true">·</span>
+          <span class="state-name" :class="{ shifting: tcuState === 'SHIFTING' }">{{
+            tcuState
+          }}</span>
+        </template>
+      </div>
+
+      <div v-if="stacked" class="actions interactive">
+        <button
+          type="button"
+          class="btn"
+          :class="{ active: clickThrough }"
+          :title="clickThrough ? t('electronApp.hudUnlock') : t('electronApp.hudLock')"
+          @click="emit('toggleClickThrough', $event)"
+        >
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" stroke-linecap="round" />
+          </svg>
+        </button>
+        <button type="button" class="btn" :title="t('electronApp.hudClose')" @click="emit('close')">
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M18 6L6 18M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </button>
+      </div>
     </div>
 
-    <span class="learn-pill" :class="pillClass" :title="t('calibration.crossover')">
-      {{ pillLabel }}
-    </span>
+    <div class="chrome-status">
+      <span class="learn-pill" :class="pillClass" :title="t('calibration.crossover')">
+        {{ pillLabel }}
+      </span>
 
-    <span class="trans-pill" :class="transmissionClass" :title="t('calibration.transmission')">
-      {{ transmissionLabel }}
-    </span>
+      <span class="trans-pill" :class="transmissionClass" :title="t('calibration.transmission')">
+        {{ transmissionLabel }}
+      </span>
 
-    <span class="clutch-pill" :class="{ on: clutchAssistEnabled }">
-      CLUTCH {{ clutchAssistEnabled ? 'ON' : 'OFF' }}
-    </span>
+      <span class="clutch-pill" :class="{ on: clutchAssistEnabled }">
+        CLUTCH {{ clutchAssistEnabled ? 'ON' : 'OFF' }}
+      </span>
+    </div>
 
-    <div class="actions interactive">
+    <div v-if="!stacked" class="actions interactive">
       <button
         type="button"
         class="btn"
@@ -165,6 +204,36 @@
     width: 100%;
     min-height: 28px;
     padding: 0;
+  }
+
+  .chrome-primary,
+  .chrome-status {
+    display: contents;
+  }
+
+  .hud-chrome.stacked {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+    min-height: 0;
+  }
+
+  .hud-chrome.stacked .chrome-primary,
+  .hud-chrome.stacked .chrome-status {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .hud-chrome.stacked .chrome-primary {
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .hud-chrome.stacked .chrome-status {
+    justify-content: flex-start;
+    gap: 6px;
   }
 
   .meta {

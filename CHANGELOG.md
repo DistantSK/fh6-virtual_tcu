@@ -9,6 +9,9 @@
 - Allow cold-start AWD/FWD wheelspin upshifts while retaining the conservative RWD power-curve gate.
 - Expand the Racing HUD and measure intrinsic content width so transmission, clutch, learning status, and window controls no longer overlap or clip.
 - Restore all EN/zh-CN labels for crossover learning, clutch controls, and rev-blip settings so the UI no longer displays raw i18n element names.
+- Show the Electron settings window immediately while the backend starts, fully quit from the window close button, and wait for the Windows backend process tree to terminate.
+- Narrow the Racing HUD and move its mode, learning, gearbox, and clutch indicators into a two-line footer.
+- Pause ratio and power-curve learning during clutch use and post-shift settling; require stable consecutive samples before assigning a ratio to a new gear.
 
 ### Changed
 

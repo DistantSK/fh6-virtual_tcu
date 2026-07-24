@@ -94,7 +94,8 @@ function createSettingsWindow() {
   settingsWindow.on('close', (e) => {
     if (!isQuitting) {
       e.preventDefault()
-      settingsWindow?.hide()
+      isQuitting = true
+      app.quit()
     }
   })
 
@@ -171,7 +172,7 @@ function createHudWindow() {
   }
 
   hudWindow = new BrowserWindow({
-    width: 460,
+    width: 390,
     height: 280,
     minWidth: 320,
     minHeight: 120,
@@ -445,7 +446,7 @@ if (!gotLock) {
     createSettingsWindow()
   })
 
-  app.whenReady().then(async () => {
+  app.whenReady().then(() => {
     electronApp.setAppUserModelId('com.virtualtcu.app')
     nativeTheme.themeSource = 'dark'
     app.on('browser-window-created', (_, w) => optimizer.watchWindowShortcuts(w))
@@ -453,14 +454,11 @@ if (!gotLock) {
     registerIpc()
     createTray()
 
-    try {
-      await backendLifecycle.start()
-    } catch (err) {
-      console.error('Backend failed to start:', err)
-    }
-
     createSettingsWindow()
     setupAutoUpdater()
+    void backendLifecycle.start().catch((err) => {
+      console.error('Backend failed to start:', err)
+    })
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createSettingsWindow()
