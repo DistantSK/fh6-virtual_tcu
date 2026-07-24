@@ -149,6 +149,7 @@
     letter-spacing: 0.1em;
     text-transform: uppercase;
     color: var(--hud-chrome-fg, #94a3b8);
+    min-width: 0;
   }
 
   .hud-chrome:not(.footer) {
@@ -200,6 +201,7 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 96px;
   }
 
   .state-name.shifting {

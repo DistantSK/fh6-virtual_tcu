@@ -64,3 +64,11 @@ def test_high_rpm_na_engine_shifts_near_redline():
     td = make_telemetry(gear=4, current_rpm=0.80 * _MAX_RPM, engine_max_rpm=_MAX_RPM)
     up = det.optimal_upshift_rpm(td, fallback=_FALLBACK, offset=0.03)
     assert up >= 0.90
+
+
+def test_crossover_maturity_uses_verified_reachable_ceiling():
+    det = PowerCurveDetector()
+    det._max_r[CAR_KEY] = 0.84
+
+    assert not det.is_crossover_mature(CAR_KEY)
+    assert det.is_crossover_mature(CAR_KEY, reachable_ceiling=0.85)

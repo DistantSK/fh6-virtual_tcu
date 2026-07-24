@@ -36,7 +36,7 @@ export const HUD_TEMPLATE_LAYOUT: Record<
   }
 > = {
   classic: { minWidth: 280, minHeight: 160, maxWidth: 340 },
-  racing: { minWidth: 320, minHeight: 200, maxWidth: 440 },
+  racing: { minWidth: 454, minHeight: 200, maxWidth: 500 },
   minimal: { minWidth: 340, minHeight: 100, maxWidth: 440 },
 }
 

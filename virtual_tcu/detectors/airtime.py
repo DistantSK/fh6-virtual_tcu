@@ -32,19 +32,41 @@ class AirtimeDetector:
 
     FREEFALL_G = -6.0  # accel_y below this = free-fall (enter airborne)
     GROUND_G = -4.0  # accel_y above this = back on the ground (exit)
+    # A crest can unload the suspension before full free-fall is established.
+    # Hold shifts briefly there, but release a continuously low signal so a
+    # long downhill grade cannot freeze the transmission.
+    UNWEIGHTED_G = -3.0
     MIN_SPEED_FOR_AIRBORNE = 15.0
     FRAMES_TO_ENGAGE = 3
     FRAMES_TO_DISENGAGE = 2
     LANDING_WINDOW_S = 0.75
+    UNWEIGHTED_HOLD_S = 0.25
+    UNWEIGHTED_MAX_CONTINUOUS_S = 1.0
 
     def __init__(self):
         self._air_streak = 0
         self._ground_streak = 0
         self._is_airborne = False
         self._landing_until = 0.0
+        self._unweighted_until = 0.0
+        self._unweighted_since = 0.0
+        self._is_unweighted = False
 
     def update(self, td: Telemetry, now: float) -> AirState:
         falling = td.accel_y < self.FREEFALL_G and td.speed_kmh > self.MIN_SPEED_FOR_AIRBORNE
+        unweighted = td.accel_y < self.UNWEIGHTED_G and td.speed_kmh > self.MIN_SPEED_FOR_AIRBORNE
+        if unweighted:
+            self._unweighted_until = now + self.UNWEIGHTED_HOLD_S
+        held = unweighted or now < self._unweighted_until
+        if held:
+            if self._unweighted_since == 0.0:
+                self._unweighted_since = now
+            elif now - self._unweighted_since > self.UNWEIGHTED_MAX_CONTINUOUS_S:
+                held = False
+        else:
+            self._unweighted_since = 0.0
+        self._is_unweighted = held
+
         # Hysteresis band (-6 .. -4): neither vote advances, so a value hovering
         # near the threshold can't flap the state.
         grounded = td.accel_y > self.GROUND_G
@@ -77,6 +99,10 @@ class AirtimeDetector:
     @property
     def is_airborne(self) -> bool:
         return self._is_airborne
+
+    @property
+    def is_unweighted(self) -> bool:
+        return self._is_unweighted
 
     @property
     def landing_until(self) -> float:

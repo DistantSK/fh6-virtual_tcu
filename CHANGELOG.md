@@ -1,5 +1,19 @@
 # Changelog
 
+## [13.9.5] - 2026-07-24
+
+### Fixed
+
+- Ignore Forza's `gear > 10` mid-shift encoding until a real forward gear confirms the shift, preventing duplicate upshift commands and low-gear skips.
+- Replace the sixth-gear hard cap with bounded exponential retry backoff so 7-10 speed transmissions recover from missed acknowledgements.
+- Allow cold-start AWD/FWD wheelspin upshifts while retaining the conservative RWD power-curve gate.
+- Expand the Racing HUD and measure intrinsic content width so transmission, clutch, learning status, and window controls no longer overlap or clip.
+
+### Changed
+
+- Combine torque-collapse limiter validation with cross-gear candidate confirmation and reachable-RPM fallback shift targets.
+- Add brief hill-crest shift holds, sustained-descent engine-brake recovery, atomic profile writes, and lossless migration of pre-13.9.5 profile files.
+
 ## [13.4.1] - 2026-06-13
 
 ### Fixed

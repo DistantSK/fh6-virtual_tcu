@@ -100,6 +100,30 @@ def test_low_speed_never_airborne():
     assert not det.is_airborne
 
 
+def test_crest_unweighting_holds_before_full_airborne():
+    det = AirtimeDetector()
+    crest = make_telemetry(speed_ms=120 / 3.6, accel_y=-3.5)
+    det.update(crest, 0.016)
+    assert det.is_unweighted
+    assert not det.is_airborne
+
+    ground = make_telemetry(speed_ms=120 / 3.6, accel_y=0.0)
+    det.update(ground, 0.10)
+    assert det.is_unweighted
+    det.update(ground, 0.40)
+    assert not det.is_unweighted
+
+
+def test_sustained_grade_does_not_hold_unweighted_forever():
+    det = AirtimeDetector()
+    grade = make_telemetry(speed_ms=120 / 3.6, accel_y=-3.5)
+    now = 0.0
+    for _ in range(90):
+        now += 0.016
+        det.update(grade, now)
+    assert not det.is_unweighted
+
+
 def test_airstate_is_frozen_dataclass():
     st = AirState(airborne=True, airborne_started=False, just_landed=False)
     assert st.airborne and not st.just_landed

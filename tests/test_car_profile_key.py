@@ -1,5 +1,7 @@
 """Per-tune profile keys and ratio-drift slot splitting."""
 
+import json
+
 from tests.conftest import CAR_KEY, CAR_KEY_BASE, make_telemetry
 from virtual_tcu.config.store import ConfigStore  # noqa: E402
 from virtual_tcu.input.interface import OutputInterface  # noqa: E402
@@ -44,6 +46,30 @@ def test_profile_store_four_part_storage_key(tmp_path):
 
     assert storage_key(CAR_KEY) in prof.data
     assert prof.get(CAR_KEY)["gear_ratios"]["1"] == 90.0
+
+
+def test_profile_store_migrates_flat_file_without_losing_custom_fields(tmp_path):
+    path = tmp_path / "prof.json"
+    key = storage_key(CAR_KEY)
+    path.write_text(
+        json.dumps(
+            {
+                key: {
+                    "gear_ratios": {"1": 90.0},
+                    "racing_transmission": True,
+                    "rev_limiter": 7200.0,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    prof = ProfileStore(path=path)
+    assert prof.get(CAR_KEY)["racing_transmission"] is True
+
+    stored = json.loads(path.read_text(encoding="utf-8"))
+    assert stored["version"] == 1
+    assert stored["profiles"][key]["rev_limiter"] == 7200.0
 
 
 def test_ratio_drift_splits_tune_slot(tmp_path, monkeypatch):

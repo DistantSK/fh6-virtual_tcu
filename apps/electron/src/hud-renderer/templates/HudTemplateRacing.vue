@@ -112,7 +112,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
-    width: 320px;
+    width: 430px;
   }
 
   .dash-row {

@@ -30,7 +30,7 @@ def test_upshift_pending_blocks_repeat(make_logic, out, clock):
     assert len(ups) == 1
 
 
-def test_failed_upshift_caps_top_gear(make_logic, out, clock):
+def test_failed_upshift_soft_caps_and_retries_top_gear(make_logic, out, clock):
     tcu = make_logic("COMFORT")
     td = make_telemetry(
         gear=6,
@@ -45,8 +45,82 @@ def test_failed_upshift_caps_top_gear(make_logic, out, clock):
         out.now = clock.now
         tcu.process(td)
     ups = [s for s in out.shifts if s[0] == "UP"]
-    assert len(ups) == 1
+    assert 2 <= len(ups) <= 4
     assert tcu._upshift_cap_by_key[CAR_KEY] == 6
+
+
+def test_midshift_encoding_does_not_confirm_upshift(make_logic, out, clock):
+    tcu = make_logic("RACE")
+    tcu._pending_upshift_from = 1
+    tcu._pending_upshift_until = clock.now + 0.1
+    tcu._we_shifted = True
+    tcu._prev_gear = 1
+
+    shifting = make_telemetry(
+        gear=11,
+        is_shifting=True,
+        current_rpm=7200,
+        engine_max_rpm=8000.0,
+        speed_ms=50.0 / 3.6,
+        accel_raw=255,
+    )
+    clock.now += 0.2
+    out.now = clock.now
+    tcu.process(shifting)
+
+    assert tcu._pending_upshift_from == 1
+    assert tcu._pending_upshift_until > clock.now
+
+    confirmed = make_telemetry(
+        gear=2,
+        current_rpm=5600,
+        engine_max_rpm=8000.0,
+        speed_ms=55.0 / 3.6,
+        accel_raw=255,
+    )
+    clock.now += 0.05
+    out.now = clock.now
+    tcu.process(confirmed)
+
+    assert tcu._pending_upshift_from is None
+    assert tcu._prev_gear == 2
+    assert not tcu._we_shifted
+
+
+def test_high_gear_cap_uses_bounded_backoff(make_logic, out, clock):
+    tcu = make_logic("COMFORT")
+    td = make_telemetry(
+        gear=8,
+        current_rpm=7600,
+        engine_max_rpm=8000.0,
+        speed_ms=260.0 / 3.6,
+        accel_raw=255,
+        brake_raw=0,
+    )
+    for _ in range(2000):
+        clock.now += 0.016
+        out.now = clock.now
+        tcu.process(td)
+
+    ups = [shift for shift in out.shifts if shift[0] == "UP"]
+    assert 3 <= len(ups) <= 8
+    assert tcu._upshift_fail_count[CAR_KEY] >= 3
+
+
+def test_real_downshift_clears_stale_cap(make_logic, out, clock):
+    tcu = make_logic("COMFORT")
+    tcu._prev_gear = 8
+    tcu._upshift_cap_by_key[CAR_KEY] = 8
+    tcu._upshift_cap_set_at[CAR_KEY] = clock.now
+    tcu._upshift_fail_count[CAR_KEY] = 3
+
+    td = make_telemetry(gear=7, current_rpm=4200, speed_ms=180.0 / 3.6)
+    clock.now += 0.016
+    out.now = clock.now
+    tcu.process(td)
+
+    assert tcu._upshift_cap_by_key[CAR_KEY] == 10
+    assert CAR_KEY not in tcu._upshift_fail_count
 
 
 def test_failed_low_gear_upshift_retries_at_redline(make_logic, out, clock):
@@ -67,6 +141,101 @@ def test_failed_low_gear_upshift_retries_at_redline(make_logic, out, clock):
     ups = [s for s in out.shifts if s[0] == "UP"]
     assert len(ups) >= 2
     assert len(ups) <= 6
+
+
+def test_cold_awd_wheelspin_can_escape_first_gear(make_logic):
+    tcu = make_logic("RACE", seed_ratios=False)
+    awd = make_telemetry(
+        gear=1,
+        drivetrain=2,
+        accel_raw=255,
+        slip_fl=1.5,
+        slip_fr=1.5,
+        slip_rl=1.5,
+        slip_rr=1.5,
+    )
+    assert not tcu._wheelspin_upshift_now(awd)
+    assert not tcu._wheelspin_upshift_now(awd)
+    assert tcu._wheelspin_upshift_now(awd)
+
+
+def test_cold_rwd_wheelspin_waits_for_power_curve(make_logic):
+    tcu = make_logic("RACE", seed_ratios=False)
+    rwd = make_telemetry(
+        gear=1,
+        drivetrain=1,
+        accel_raw=255,
+        slip_rl=1.5,
+        slip_rr=1.5,
+    )
+    for _ in range(5):
+        assert not tcu._wheelspin_upshift_now(rwd)
+
+
+def test_low_gear_unreachable_wot_target_uses_measured_ceiling(make_logic):
+    tcu = make_logic("RACE", seed_ratios=False)
+    tcu._rpm_pct_history.extend([0.858, 0.861, 0.859, 0.860, 0.861] * 2)
+    td = make_telemetry(
+        gear=1,
+        current_rpm=0.86 * 8000,
+        engine_max_rpm=8000.0,
+        speed_ms=45.0 / 3.6,
+        accel_raw=255,
+        brake_raw=0,
+    )
+
+    assert tcu._wot_upshift_fallback(td) < 0.90
+
+
+def test_comfort_uses_real_limiter_without_mutating_nominal_rpm(make_logic, out, clock):
+    tcu = make_logic("COMFORT")
+    tcu._rev_limiter.load(CAR_KEY, 6240.0)
+    td = make_telemetry(
+        gear=3,
+        current_rpm=6400.0,
+        engine_max_rpm=8000.0,
+        speed_ms=100.0 / 3.6,
+        accel_raw=255,
+        brake_raw=0,
+    )
+    nominal = td.engine_max_rpm
+
+    clock.now += 0.016
+    out.now = clock.now
+    tcu.process(td)
+
+    assert any(shift[0] == "UP" for shift in out.shifts)
+    assert td.engine_max_rpm == nominal
+
+
+def test_high_gear_plateau_requires_time_normalized_evidence(make_logic, clock):
+    tcu = make_logic("RACE")
+    td = make_telemetry(
+        gear=8,
+        current_rpm=0.83 * 8000,
+        engine_max_rpm=8000.0,
+        speed_ms=260.0 / 3.6,
+        accel_raw=255,
+        brake_raw=0,
+    )
+
+    for index in range(100):
+        clock.now += 0.016
+        td.current_rpm = (0.83 + index * 0.0005) * 8000
+        td.speed_ms = (260.0 + index * 0.10) / 3.6
+        tcu._observe_high_gear_load_plateau(td, tcu.mode, clock.now)
+
+    assert not tcu._load_plateau_reached
+
+    tcu._reset_load_plateau()
+    td.current_rpm = 0.84 * 8000
+    td.speed_ms = 280.0 / 3.6
+    for _ in range(180):
+        clock.now += 0.016
+        tcu._observe_high_gear_load_plateau(td, tcu.mode, clock.now)
+
+    assert tcu._load_plateau_reached
+    assert tcu._wot_upshift_fallback(td) < 0.90
 
 
 def test_reverse_exit_does_not_block_launch_upshift(make_logic, out, clock):

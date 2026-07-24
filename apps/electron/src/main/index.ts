@@ -171,9 +171,9 @@ function createHudWindow() {
   }
 
   hudWindow = new BrowserWindow({
-    width: 340,
+    width: 460,
     height: 280,
-    minWidth: 240,
+    minWidth: 320,
     minHeight: 120,
     x: 24,
     y: 24,

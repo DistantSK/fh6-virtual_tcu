@@ -112,3 +112,22 @@ def test_grounded_mismatch_downshifts(make_logic, out, clock):
     tcu.process(md)
     assert "DOWN" in _kinds(out)
     assert Cfg.MIN_SPEED_KMH < 30  # sanity: not the standstill path
+
+
+def test_sustained_descent_recovers_engine_braking(make_logic, out, clock):
+    tcu = make_logic("RACE")
+    for index in range(12):
+        speed = 90.0 + index * 0.25
+        td = make_telemetry(
+            gear=4,
+            current_rpm=0.42 * 8000,
+            engine_max_rpm=8000.0,
+            speed_ms=speed / 3.6,
+            accel_raw=20,
+            brake_raw=0,
+        )
+        clock.now += 0.1
+        out.now = clock.now
+        tcu._track_descent_downshift(td, clock.now)
+
+    assert "DOWN" in _kinds(out)

@@ -88,8 +88,8 @@
   }
 
   .hud-root.tpl-racing-shell {
-    --hud-min-width: 320px;
-    --hud-max-width: 400px;
+    --hud-min-width: 454px;
+    --hud-max-width: 480px;
     --hud-pad-x: 12px;
     --hud-pad-y: 10px;
     background: rgba(0, 0, 0, 0.9);

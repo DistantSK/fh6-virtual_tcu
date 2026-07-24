@@ -262,6 +262,7 @@ class PowerCurveDetector:
         *,
         conf_floor: float = 0.30,
         hysteresis: float = 0.02,
+        maturity_ceiling: float | None = None,
     ) -> bool | None:
         """Tractive-force crossover test for an N -> N+1 upshift.
 
@@ -290,7 +291,7 @@ class PowerCurveDetector:
         # dominated fit fabricates a high-rpm roll-off and the crossover fires
         # early — so defer to the rpm-percent path (which the caller drives up
         # to CROSSOVER_MATURE_MAX_R) to harvest the missing top-end samples.
-        if not self.is_crossover_mature(td.car_key):
+        if not self.is_crossover_mature(td.car_key, maturity_ceiling):
             return None
         torque = self._torque_model(td.car_key)
         if torque is None:
@@ -307,13 +308,20 @@ class PowerCurveDetector:
     def has_data(self, car_key: tuple) -> bool:
         return self._peaks(car_key)[1] is not None
 
-    def is_crossover_mature(self, car_key: tuple) -> bool:
+    def is_crossover_mature(
+        self,
+        car_key: tuple,
+        reachable_ceiling: float | None = None,
+    ) -> bool:
         """True once the engine has been revved close enough to the limiter on
         this car that the high-rpm end of the torque parabola is backed by real
         samples. Below this the crossover test is disabled (see
         crossover_upshift_ok) and the caller holds the upshift toward
         ``Cfg.CROSSOVER_MATURE_MAX_R`` to collect the missing top-end data."""
-        return self._max_r.get(car_key, 0.0) >= Cfg.CROSSOVER_MATURE_MAX_R
+        required = Cfg.CROSSOVER_MATURE_MAX_R
+        if reachable_ceiling is not None and reachable_ceiling < required:
+            required = max(self.HIGH_RPM_COVERAGE, reachable_ceiling - 0.015)
+        return self._max_r.get(car_key, 0.0) >= required
 
     def dump(self, car_key: tuple) -> dict | None:
         """Serialise the parabola fit for *car_key*, or None if no data."""

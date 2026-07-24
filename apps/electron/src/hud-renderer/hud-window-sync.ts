@@ -19,8 +19,11 @@ function measureHudFrame(template: HudTemplateId): { width: number; height: numb
   const frame = document.querySelector('.hud-frame') as HTMLElement | null
   if (!frame) return null
 
-  const width = frame.offsetWidth
-  const height = frame.offsetHeight
+  // scrollWidth catches fixed-width status rows whose intrinsic content is
+  // wider than the frame's border box; offsetWidth alone silently clipped the
+  // transmission/clutch badges and the two window controls.
+  const width = Math.max(frame.offsetWidth, frame.scrollWidth)
+  const height = Math.max(frame.offsetHeight, frame.scrollHeight)
   if (width <= 0 || height <= 0) return null
 
   return clampSize(width, height, template)
