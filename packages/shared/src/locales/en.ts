@@ -220,10 +220,12 @@ export default {
     shiftAdvisor: 'Shift Advisor (Manual)',
     engineBrake: 'Engine Brake (descents)',
     powerCurve: 'Power Curve Learning',
+    crossoverUpshift: 'Force Crossover Upshift',
     turboCompensate: 'Turbo Lag Compensation',
     airtimeLock: 'Airtime Lock (jumps)',
     transientLock: 'Transient Lock (oversteer)',
     driveStyle: 'Drive Style (adaptive)',
+    revBlip: 'Rev-Match Blip',
     hints: {
       corneringLock: 'Blocks upshifts while turning so you do not shift too early in corners.',
       launchControl: 'Stage in 1st with brake + throttle, then launch on brake release.',
@@ -232,10 +234,14 @@ export default {
       shiftAdvisor: 'Shows shift hints in Manual mode only; TCU does not auto-shift.',
       engineBrake: 'Downshifts on downhill coast to use engine braking.',
       powerCurve: 'Learns per-car torque/power; Race/Offroad use the optimal upshift point.',
+      crossoverUpshift:
+        'Sets the upshift point by tractive-force crossover once a car is learned (needs Power Curve). The WOT sliders become an early-shift floor.',
       turboCompensate: 'Holds upshifts until boost builds on turbocharged cars.',
       airtimeLock: 'Freezes shifting while airborne so jumps do not trigger shifts.',
       transientLock: 'Pauses shifting during brief corrections, not sustained drifts.',
       driveStyle: 'Comfort mode auto-switches between cruise and sport driving.',
+      revBlip:
+        'Taps the throttle together with each downshift to match revs; this also runs during clutch-assisted shifts.',
     },
     launchRpm: 'Target RPM',
     comfortUpWot: 'Upshift WOT',
@@ -352,6 +358,9 @@ export default {
     shiftKeyHint: 'Must match your in-game upshift/downshift bindings. Applies immediately.',
     shiftKeyUp: 'Upshift',
     shiftKeyDown: 'Downshift',
+    throttleKey: 'Throttle key',
+    throttleKeyHint:
+      'Used by F7 relearn to press the clutch and tap the throttle while detecting fuel cut. Match the in-game throttle key.',
     clutchAssist: 'Clutch Assist (opt-in)',
     clutchAssistHint:
       'Press clutch key before each shift. For "Manual with Clutch" players only. Default off.',
@@ -359,6 +368,11 @@ export default {
     clutchPreMs: 'Pre-shift ms',
     clutchOverlapMs: 'Overlap ms',
     clutchReleaseMs: 'Release ms',
+    revBlip: 'Rev-Match Blip',
+    revBlipHint:
+      'Taps the throttle together with the downshift key to reduce the RPM shock after shifting.',
+    blipKey: 'Blip key',
+    blipMs: 'Blip duration ms',
     outputMode: 'Output mode',
     outputModeHint: 'Choose how the TCU sends shift commands to the game.',
     outputModeKeyboard: 'Keyboard (E / Q)',
@@ -377,6 +391,10 @@ export default {
     saveAndRestart: 'Save & Restart Backend',
     cycleMode: 'Cycle mode',
     triggerSnapshot: 'Manual Snapshot',
+    crossoverRelearn: 'Crossover upshift relearn',
+    toggleClutch: 'F10 Clutch toggle',
+    crossoverRelearnNote:
+      'When parked: clears gear ratios, power curve, and fuel-cut data for a full relearn. It presses the clutch and taps the throttle for about 1.5 seconds to detect fuel cut, and aborts if the car moves.',
     fullTuning: 'Drive modes — full tuning',
   },
   modal: {
@@ -392,7 +410,7 @@ export default {
   },
   footer: {
     hint: 'UDP :5555 · Localhost · {hotkeys}',
-    hotkeys: 'F9 cycle mode · F8 toggle log',
+    hotkeys: 'F9 cycle mode · F8 toggle log · F10 clutch',
     viewOnlyHint: 'View-only dashboard · Configure in Virtual TCU desktop app',
     github: 'GitHub',
   },

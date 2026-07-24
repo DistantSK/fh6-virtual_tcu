@@ -8,6 +8,7 @@
 - Replace the sixth-gear hard cap with bounded exponential retry backoff so 7-10 speed transmissions recover from missed acknowledgements.
 - Allow cold-start AWD/FWD wheelspin upshifts while retaining the conservative RWD power-curve gate.
 - Expand the Racing HUD and measure intrinsic content width so transmission, clutch, learning status, and window controls no longer overlap or clip.
+- Restore all EN/zh-CN labels for crossover learning, clutch controls, and rev-blip settings so the UI no longer displays raw i18n element names.
 
 ### Changed
 
