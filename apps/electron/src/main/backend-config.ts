@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { accessSync, constants, existsSync, readFileSync } from 'node:fs'
 import { networkInterfaces } from 'node:os'
 import { join } from 'node:path'
 import { app } from 'electron'
@@ -42,9 +42,22 @@ function localLanIp(): string | undefined {
 function configCandidates(backendCwd?: string): string[] {
   const paths: string[] = []
   if (app.isPackaged) {
-    paths.push(join(process.resourcesPath, 'backend', 'tcu_config.json'))
+    const backendDir = join(process.resourcesPath, 'backend')
+    const installedConfig = join(backendDir, 'tcu_config.json')
     const appData = process.env.APPDATA
-    if (appData) paths.push(join(appData, 'VirtualTCU', 'tcu_config.json'))
+    const userConfig = appData ? join(appData, 'VirtualTCU', 'tcu_config.json') : undefined
+
+    // The frozen backend writes beside its exe when that directory is writable
+    // (for example when running elevated), otherwise it falls back to APPDATA.
+    // Mirror that choice so Electron never reconnects to a stale bundled port.
+    try {
+      accessSync(backendDir, constants.W_OK)
+      paths.push(installedConfig)
+      if (userConfig) paths.push(userConfig)
+    } catch {
+      if (userConfig) paths.push(userConfig)
+      paths.push(installedConfig)
+    }
   }
   paths.push(join(projectRoot(), 'tcu_config.json'))
   if (backendCwd) paths.push(join(backendCwd, 'tcu_config.json'))

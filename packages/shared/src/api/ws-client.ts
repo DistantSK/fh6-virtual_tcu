@@ -10,14 +10,14 @@ export class TcuWsClient {
   private connectionHandler: ConnectionHandler | null = null
   private url: string
   private gotInit = false
+  private socketGeneration = 0
 
   constructor(url?: string) {
     this.url = url ?? TcuWsClient.defaultUrl()
   }
 
   setUrl(url: string) {
-    if (url === this.url)
-      return
+    if (url === this.url) return
     this.url = url
     this.gotInit = false
     this.disconnect()
@@ -29,7 +29,8 @@ export class TcuWsClient {
   }
 
   static defaultUrl(): string {
-    const isElectron = typeof window !== 'undefined' && (window as { isElectron?: boolean }).isElectron
+    const isElectron =
+      typeof window !== 'undefined' && (window as { isElectron?: boolean }).isElectron
     if (isElectron || location.protocol === 'file:' || !location.host)
       return 'ws://127.0.0.1:8765/ws'
     const proto = location.protocol === 'https:' ? 'wss' : 'ws'
@@ -49,32 +50,37 @@ export class TcuWsClient {
       return
 
     this.gotInit = false
-    this.ws = new WebSocket(this.url)
-    this.ws.onopen = () => {
+    const generation = ++this.socketGeneration
+    const socket = new WebSocket(this.url)
+    this.ws = socket
+    socket.onopen = () => {
+      if (this.ws !== socket || generation !== this.socketGeneration) return
       this.connectionHandler?.(true)
     }
-    this.ws.onmessage = (e) => {
+    socket.onmessage = (e) => {
+      if (this.ws !== socket || generation !== this.socketGeneration) return
       try {
         const msg = JSON.parse(e.data as string) as WsInbound
-        if (msg.type === 'init')
-          this.gotInit = true
+        if (msg.type === 'init') this.gotInit = true
         this.handler?.(msg)
-      }
-      catch {
+      } catch {
         /* ignore malformed */
       }
     }
-    this.ws.onclose = () => {
+    socket.onclose = () => {
+      if (this.ws !== socket || generation !== this.socketGeneration) return
+      this.ws = null
       this.gotInit = false
       this.connectionHandler?.(false)
       this.scheduleReconnect()
     }
-    this.ws.onerror = () => this.ws?.close()
+    socket.onerror = () => {
+      if (this.ws === socket && generation === this.socketGeneration) socket.close()
+    }
   }
 
   send(msg: WsOutbound) {
-    if (this.ws?.readyState === WebSocket.OPEN)
-      this.ws.send(JSON.stringify(msg))
+    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg))
   }
 
   get connected() {
@@ -86,17 +92,17 @@ export class TcuWsClient {
   }
 
   disconnect() {
-    if (this.reconnectTimer)
-      clearTimeout(this.reconnectTimer)
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer)
     this.reconnectTimer = null
+    this.socketGeneration++
     this.gotInit = false
-    this.ws?.close()
+    const socket = this.ws
     this.ws = null
+    socket?.close()
   }
 
   private scheduleReconnect() {
-    if (this.reconnectTimer)
-      clearTimeout(this.reconnectTimer)
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer)
     this.reconnectTimer = setTimeout(() => this.connect(), 1500)
   }
 }
