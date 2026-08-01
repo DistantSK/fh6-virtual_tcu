@@ -1725,8 +1725,10 @@ class TCULogic:
         target_pct = self._effective_upshift_pct(td, offset)
 
         sub = "in band"
-        if self._config.get("feat_crossover_upshift", True):
-            ratios = self._calibrator.get_ratios(td.car_key)
+        ratios = self._calibrator.get_ratios(td.car_key)
+        next_gear_unknown = td.gear + 1 not in ratios
+        crossover_enabled = self._config.get("feat_crossover_upshift", True)
+        if crossover_enabled:
             decision = self._power_curve.crossover_upshift_ok(
                 td,
                 ratios,
@@ -1764,10 +1766,11 @@ class TCULogic:
         # the learning-phase target; once mature the crossover branch above
         # takes over. The car still upshifts (just nearer the limiter), so the
         # cold-start "upshift out of 1st without ratio data" path is preserved.
-        if self._config.get(
-            "feat_crossover_upshift", True
-        ) and not self._power_curve.is_crossover_mature(td.car_key, fallback):
+        if crossover_enabled and not self._power_curve.is_crossover_mature(td.car_key, fallback):
             target_pct = min(max(target_pct, Cfg.CROSSOVER_MATURE_MAX_R), fallback)
+        if crossover_enabled and next_gear_unknown and td.gear >= Cfg.UNKNOWN_NEXT_GEAR_PROBE_FROM:
+            target_pct = min(target_pct, Cfg.UNKNOWN_NEXT_GEAR_PROBE_R)
+            sub = "next gear probe"
         if td.rpm_pct < target_pct:
             return False
         return self._shift_up(td, 300, "UPSHIFT", sub, downshift_lock_s=downshift_lock_s)

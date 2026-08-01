@@ -45,6 +45,12 @@ class Cfg:
     # learning phase harvests the top-end samples and breaks the loop, after
     # which the crossover takes over. See PowerCurveDetector.is_crossover_mature.
     CROSSOVER_MATURE_MAX_R = 0.93
+    # When the next high gear has never been seen, crossover force cannot be
+    # calculated. Probe it before the learning ceiling so a tall intermediate
+    # gear that cannot reach 93% RPM does not strand a 7-10 speed gearbox.
+    # A real top gear is still protected by the soft-cap retry backoff.
+    UNKNOWN_NEXT_GEAR_PROBE_FROM = 5
+    UNKNOWN_NEXT_GEAR_PROBE_R = 0.82
     # Hard late ceiling: take the shift here regardless of the crossover test,
     # so a wide-ratio gear never floats the limiter waiting for crossover.
     UPSHIFT_LIMITER_CEIL = 0.99

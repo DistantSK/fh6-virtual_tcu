@@ -143,6 +143,70 @@ def test_failed_low_gear_upshift_retries_at_redline(make_logic, out, clock):
     assert len(ups) <= 6
 
 
+def test_unknown_seventh_gear_is_probed_before_crossover_learning_ceiling(make_logic, out, clock):
+    tcu = make_logic("RACE")
+    # The profile knows gears 1-6 only. A ten-speed car must enter 7th once
+    # before its ratio can be learned; 6th may be too tall to ever reach the
+    # normal 93% crossover-learning ceiling.
+    td = make_telemetry(
+        gear=6,
+        current_rpm=0.84 * 8000,
+        engine_max_rpm=8000.0,
+        speed_ms=230.0 / 3.6,
+        accel_raw=255,
+        brake_raw=0,
+    )
+
+    clock.now += 0.016
+    out.now = clock.now
+    tcu.process(td)
+
+    assert [shift[0] for shift in out.shifts] == ["UP"]
+    assert tcu._pending_upshift_from == 6
+
+
+def test_known_seventh_gear_keeps_crossover_learning_ceiling(make_logic, out, clock):
+    tcu = make_logic("RACE")
+    ratios = {1: 120.0, 2: 80.0, 3: 58.0, 4: 44.0, 5: 35.0, 6: 29.0, 7: 24.5}
+    tcu._calibrator.load(
+        CAR_KEY,
+        {"ratios": ratios, "counts": {gear: 50 for gear in ratios}},
+    )
+    td = make_telemetry(
+        gear=6,
+        current_rpm=0.84 * 8000,
+        engine_max_rpm=8000.0,
+        speed_ms=230.0 / 3.6,
+        accel_raw=255,
+        brake_raw=0,
+    )
+
+    clock.now += 0.016
+    out.now = clock.now
+    tcu.process(td)
+
+    assert out.shifts == []
+
+
+def test_unknown_gear_probe_does_not_override_disabled_crossover(make_logic, out, clock):
+    tcu = make_logic("RACE")
+    tcu._config.set("feat_crossover_upshift", False)
+    td = make_telemetry(
+        gear=6,
+        current_rpm=0.84 * 8000,
+        engine_max_rpm=8000.0,
+        speed_ms=230.0 / 3.6,
+        accel_raw=255,
+        brake_raw=0,
+    )
+
+    clock.now += 0.016
+    out.now = clock.now
+    tcu.process(td)
+
+    assert out.shifts == []
+
+
 def test_cold_awd_wheelspin_can_escape_first_gear(make_logic):
     tcu = make_logic("RACE", seed_ratios=False)
     awd = make_telemetry(
