@@ -165,6 +165,54 @@ def test_unknown_seventh_gear_is_probed_before_crossover_learning_ceiling(make_l
     assert tcu._pending_upshift_from == 6
 
 
+def test_unknown_seventh_gear_uses_confirmed_previous_shift_points(make_logic, out, clock):
+    tcu = make_logic("RACE")
+    tcu._upshift_rpm_targets[CAR_KEY] = {
+        "RACE": {3: 0.88, 4: 0.90, 5: 0.92},
+    }
+    td = make_telemetry(
+        gear=6,
+        current_rpm=0.90 * 8000,
+        engine_max_rpm=8000.0,
+        speed_ms=230.0 / 3.6,
+        accel_raw=255,
+        brake_raw=0,
+    )
+
+    # Weighted recent history + 1% safety margin is about 91.7%, so the old
+    # fixed 82% probe must no longer fire here.
+    clock.now += 0.016
+    out.now = clock.now
+    tcu.process(td)
+    assert out.shifts == []
+
+    td.current_rpm = 0.92 * 8000
+    clock.now += 0.016
+    out.now = clock.now
+    tcu.process(td)
+    assert [shift[0] for shift in out.shifts] == ["UP"]
+
+
+def test_probe_learning_only_commits_confirmed_high_load_upshift(make_logic, clock):
+    tcu = make_logic("RACE")
+    attempted = make_telemetry(gear=4, current_rpm=0.89 * 8000, accel_raw=255)
+    assert tcu._shift_up(attempted, 300, "UPSHIFT")
+    assert CAR_KEY not in tcu._upshift_rpm_targets
+
+    confirmed = make_telemetry(gear=5, current_rpm=0.75 * 8000, accel_raw=255)
+    clock.now += 0.1
+    tcu._resolve_pending_upshift(confirmed, clock.now)
+    learned = tcu._upshift_rpm_targets[CAR_KEY]["RACE"][4]
+    assert abs(learned - 0.89) < 1e-9
+
+    clock.now += 1.0
+    rejected = make_telemetry(gear=5, current_rpm=0.91 * 8000, accel_raw=255)
+    assert tcu._shift_up(rejected, 300, "UPSHIFT")
+    clock.now = tcu._pending_upshift_until + 0.01
+    tcu._resolve_pending_upshift(rejected, clock.now)
+    assert 5 not in tcu._upshift_rpm_targets[CAR_KEY]["RACE"]
+
+
 def test_known_seventh_gear_keeps_crossover_learning_ceiling(make_logic, out, clock):
     tcu = make_logic("RACE")
     ratios = {1: 120.0, 2: 80.0, 3: 58.0, 4: 44.0, 5: 35.0, 6: 29.0, 7: 24.5}

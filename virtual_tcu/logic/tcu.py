@@ -122,6 +122,8 @@ class TCULogic:
         self._we_shifted = False
         self._pending_upshift_from: int | None = None
         self._pending_upshift_until = 0.0
+        self._pending_upshift_sample: tuple[tuple, str, int, float] | None = None
+        self._upshift_rpm_targets: dict[tuple, dict[str, dict[int, float]]] = {}
         self._upshift_cap_by_key: dict[tuple, int] = {}
         self._upshift_cap_set_at: dict[tuple, float] = {}
         self._upshift_fail_count: dict[tuple, int] = {}
@@ -219,6 +221,9 @@ class TCULogic:
             profile["rev_limiter"] = rl
         if ck in self._racing_transmission:
             profile["racing_transmission"] = self._racing_transmission[ck]
+        targets = self._upshift_rpm_targets.get(ck)
+        if targets:
+            profile["upshift_rpm_targets"] = targets
         if profile:
             from datetime import datetime
 
@@ -256,6 +261,7 @@ class TCULogic:
         self._upshift_cap_by_key.pop(ck, None)
         self._upshift_cap_set_at.pop(ck, None)
         self._upshift_fail_count.pop(ck, None)
+        self._upshift_rpm_targets.pop(ck, None)
         self._max_gear_seen.pop(ck, None)
         self._gear_plateau_s.pop(ck, None)
         self._racing_transmission.pop(ck, None)
@@ -351,6 +357,7 @@ class TCULogic:
             self._upshift_cap_by_key.pop(ck, None)
             self._upshift_cap_set_at.pop(ck, None)
             self._upshift_fail_count.pop(ck, None)
+            self._upshift_rpm_targets.pop(ck, None)
             self._max_gear_seen.pop(ck, None)
             self._gear_plateau_s.pop(ck, None)
             self._racing_transmission.pop(ck, None)
@@ -364,6 +371,7 @@ class TCULogic:
                     "power_curve",
                     "rev_limiter",
                     "racing_transmission",
+                    "upshift_rpm_targets",
                 ):
                     profile.pop(stale, None)
                 self._profiles.set(ck, profile)
@@ -371,7 +379,7 @@ class TCULogic:
             td = self._last_td
             print(
                 f"[Crossover] relearn {storage_key(ck)}: "
-                "cleared gear ratios + power curve + rev limiter"
+                "cleared gear ratios + power curve + shift targets + rev limiter"
             )
         # Run the fuel-cut blip OUTSIDE the data lock: telemetry processing (and
         # rev_limiter.observe, which is what actually learns the cut) must keep
@@ -456,8 +464,10 @@ class TCULogic:
                 )
             return
         if 1 <= td.gear <= 10 and td.gear > self._pending_upshift_from:
+            self._commit_pending_upshift_sample()
             self._pending_upshift_from = None
             self._pending_upshift_until = 0.0
+            self._pending_upshift_sample = None
             if td.car_key[0] > 0:
                 ck = td.car_key
                 self._upshift_cap_by_key[ck] = 10
@@ -475,7 +485,30 @@ class TCULogic:
                 self._upshift_fail_count[ck] = self._upshift_fail_count.get(ck, 0) + 1
             self._pending_upshift_from = None
             self._pending_upshift_until = 0.0
+            self._pending_upshift_sample = None
             self._we_shifted = False
+
+    def _commit_pending_upshift_sample(self) -> None:
+        sample = self._pending_upshift_sample
+        if sample is None:
+            return
+        ck, mode, gear, rpm_pct = sample
+        by_mode = self._upshift_rpm_targets.setdefault(ck, {}).setdefault(mode, {})
+        previous = by_mode.get(gear)
+        by_mode[gear] = rpm_pct if previous is None else previous * 0.7 + rpm_pct * 0.3
+
+    def _unknown_next_gear_probe_pct(self, td: Telemetry, reachable: float) -> float:
+        """Use confirmed earlier-gear shifts before the cold-start fallback."""
+        learned = self._upshift_rpm_targets.get(td.car_key, {}).get(self.mode.value, {})
+        previous = sorted((gear, pct) for gear, pct in learned.items() if gear < td.gear)[-3:]
+        if previous:
+            weights = range(1, len(previous) + 1)
+            total = sum(weight * pct for weight, (_, pct) in zip(weights, previous, strict=True))
+            probe = total / sum(weights) + Cfg.UNKNOWN_NEXT_GEAR_PROBE_MARGIN_R
+        else:
+            probe = Cfg.UNKNOWN_NEXT_GEAR_PROBE_R
+        probe = max(Cfg.UNKNOWN_NEXT_GEAR_PROBE_MIN_R, probe)
+        return min(probe, Cfg.UNKNOWN_NEXT_GEAR_PROBE_MAX_R, reachable)
 
     def _upshift_retry_backoff_s(self, ck: tuple) -> float:
         failures = self._upshift_fail_count.get(ck, 1)
@@ -610,6 +643,26 @@ class TCULogic:
             self._rev_limiter.load(ck, data["rev_limiter"])
         if "racing_transmission" in data:
             self._racing_transmission[ck] = bool(data["racing_transmission"])
+        raw_targets = data.get("upshift_rpm_targets")
+        if isinstance(raw_targets, dict):
+            parsed_targets: dict[str, dict[int, float]] = {}
+            valid_modes = {mode.value for mode in Mode}
+            for mode, entries in raw_targets.items():
+                if mode not in valid_modes or not isinstance(entries, dict):
+                    continue
+                parsed: dict[int, float] = {}
+                for raw_gear, raw_pct in entries.items():
+                    try:
+                        gear = int(raw_gear)
+                        pct = float(raw_pct)
+                    except (TypeError, ValueError):
+                        continue
+                    if 1 <= gear < 10 and 0.50 <= pct <= 1.0:
+                        parsed[gear] = pct
+                if parsed:
+                    parsed_targets[mode] = parsed
+            if parsed_targets:
+                self._upshift_rpm_targets[ck] = parsed_targets
 
     def _split_tune_profile(self, td: Telemetry, reason: str) -> None:
         """Allocate a new tune_id slot when saved gear ratios no longer match the car."""
@@ -935,6 +988,7 @@ class TCULogic:
             self._slip_streak = 0
             self._pending_upshift_from = None
             self._pending_upshift_until = 0.0
+            self._pending_upshift_sample = None
             self._learning_block_until = now + 0.25
             self._last_hard_brake_time = 0.0
             self._brake_history.clear()
@@ -973,6 +1027,7 @@ class TCULogic:
                 self._upshift_fail_count.pop(td.car_key, None)
                 self._pending_upshift_from = None
                 self._pending_upshift_until = 0.0
+                self._pending_upshift_sample = None
             else:
                 self._last_downshift_time = now
                 # A real downshift proves any cap behind us is stale. Restart
@@ -1117,6 +1172,7 @@ class TCULogic:
             self._peak_g = 0.0
             self._pending_upshift_from = None
             self._pending_upshift_until = 0.0
+            self._pending_upshift_sample = None
             self._clear_learning_for_key(ck)
             self._load_profiles(ck, td)
 
@@ -1233,6 +1289,11 @@ class TCULogic:
         self._lock_until = now + (lock_ms / 1000.0)
         self._pending_upshift_from = td.gear
         self._pending_upshift_until = now + Cfg.UPSHIFT_PENDING_TIMEOUT_S
+        self._pending_upshift_sample = (
+            (ck, self.mode.value, td.gear, td.rpm_pct)
+            if state == "UPSHIFT" and td.throttle >= 0.70 and td.brake <= 0.05 and ck[0] > 0
+            else None
+        )
         self._no_upshift_until = max(
             self._no_upshift_until, self._lock_until, self._pending_upshift_until
         )
@@ -1769,8 +1830,8 @@ class TCULogic:
         if crossover_enabled and not self._power_curve.is_crossover_mature(td.car_key, fallback):
             target_pct = min(max(target_pct, Cfg.CROSSOVER_MATURE_MAX_R), fallback)
         if crossover_enabled and next_gear_unknown and td.gear >= Cfg.UNKNOWN_NEXT_GEAR_PROBE_FROM:
-            target_pct = min(target_pct, Cfg.UNKNOWN_NEXT_GEAR_PROBE_R)
-            sub = "next gear probe"
+            target_pct = min(target_pct, self._unknown_next_gear_probe_pct(td, fallback))
+            sub = "learned gear probe"
         if td.rpm_pct < target_pct:
             return False
         return self._shift_up(td, 300, "UPSHIFT", sub, downshift_lock_s=downshift_lock_s)

@@ -46,11 +46,13 @@ class Cfg:
     # which the crossover takes over. See PowerCurveDetector.is_crossover_mature.
     CROSSOVER_MATURE_MAX_R = 0.93
     # When the next high gear has never been seen, crossover force cannot be
-    # calculated. Probe it before the learning ceiling so a tall intermediate
-    # gear that cannot reach 93% RPM does not strand a 7-10 speed gearbox.
-    # A real top gear is still protected by the soft-cap retry backoff.
+    # calculated. Prefer this car/mode's confirmed earlier-gear shift points;
+    # this is only the cold-start fallback when no such history exists.
     UNKNOWN_NEXT_GEAR_PROBE_FROM = 5
     UNKNOWN_NEXT_GEAR_PROBE_R = 0.82
+    UNKNOWN_NEXT_GEAR_PROBE_MIN_R = 0.78
+    UNKNOWN_NEXT_GEAR_PROBE_MAX_R = 0.96
+    UNKNOWN_NEXT_GEAR_PROBE_MARGIN_R = 0.01
     # Hard late ceiling: take the shift here regardless of the crossover test,
     # so a wide-ratio gear never floats the limiter waiting for crossover.
     UPSHIFT_LIMITER_CEIL = 0.99

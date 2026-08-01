@@ -48,6 +48,20 @@ def test_profile_store_four_part_storage_key(tmp_path):
     assert prof.get(CAR_KEY)["gear_ratios"]["1"] == 90.0
 
 
+def test_confirmed_upshift_targets_round_trip_with_car_profile(tmp_path):
+    cfg = ConfigStore(path=str(tmp_path / "cfg.json"))
+    prof = ProfileStore(path=str(tmp_path / "prof.json"))
+    first = TCULogic(_Out(), prof, cfg, TelemetryLogger())
+    first._current_car_key = CAR_KEY
+    first._upshift_rpm_targets[CAR_KEY] = {"RACE": {3: 0.88, 4: 0.91}}
+    first.save_profiles()
+
+    restored = TCULogic(_Out(), prof, cfg, TelemetryLogger())
+    restored._load_profiles(CAR_KEY, make_telemetry())
+
+    assert restored._upshift_rpm_targets[CAR_KEY]["RACE"] == {3: 0.88, 4: 0.91}
+
+
 def test_profile_store_migrates_flat_file_without_losing_custom_fields(tmp_path):
     path = tmp_path / "prof.json"
     key = storage_key(CAR_KEY)
