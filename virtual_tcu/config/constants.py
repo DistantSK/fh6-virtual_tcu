@@ -12,11 +12,11 @@ class Cfg:
     LOW_GEAR_LOCK_MS = 800
     # Wait for the game to acknowledge an upshift before retrying (prevents E-key spam).
     UPSHIFT_PENDING_TIMEOUT_S = 1.2
-    # A rejected upshift creates a soft cap. Repeated failures back off
-    # exponentially so real top gears are probed infrequently while 7-10 speed
-    # transmissions can still recover from a missed acknowledgement.
+    # After a low-gear upshift is rejected, wait this long before clearing the soft cap
+    # and allowing another attempt (still at WOT / redline).
     UPSHIFT_CAP_RETRY_S = 0.8
-    UPSHIFT_CAP_MAX_BACKOFF_S = 8.0
+    # At/above this gear, a rejected upshift keeps a hard cap (e.g. 6-speed cannot take 7th).
+    UPSHIFT_CAP_HARD_FROM_GEAR = 6
     REVERSE_EXIT_LOCK_S = 2.0
     ANTI_STALL_RPM = 1100
     MIN_SPEED_KMH = 12.0
@@ -45,14 +45,6 @@ class Cfg:
     # learning phase harvests the top-end samples and breaks the loop, after
     # which the crossover takes over. See PowerCurveDetector.is_crossover_mature.
     CROSSOVER_MATURE_MAX_R = 0.93
-    # When the next high gear has never been seen, crossover force cannot be
-    # calculated. Prefer this car/mode's confirmed earlier-gear shift points;
-    # this is only the cold-start fallback when no such history exists.
-    UNKNOWN_NEXT_GEAR_PROBE_FROM = 5
-    UNKNOWN_NEXT_GEAR_PROBE_R = 0.82
-    UNKNOWN_NEXT_GEAR_PROBE_MIN_R = 0.78
-    UNKNOWN_NEXT_GEAR_PROBE_MAX_R = 0.96
-    UNKNOWN_NEXT_GEAR_PROBE_MARGIN_R = 0.01
     # Hard late ceiling: take the shift here regardless of the crossover test,
     # so a wide-ratio gear never floats the limiter waiting for crossover.
     UPSHIFT_LIMITER_CEIL = 0.99

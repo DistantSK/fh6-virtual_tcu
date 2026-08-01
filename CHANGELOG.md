@@ -2,21 +2,17 @@
 
 ## [13.9.5] - 2026-07-24
 
-### Fixed
-
-- Ignore Forza's `gear > 10` mid-shift encoding until a real forward gear confirms the shift, preventing duplicate upshift commands and low-gear skips.
-- Replace the sixth-gear hard cap with bounded exponential retry backoff so 7-10 speed transmissions recover from missed acknowledgements.
-- Allow cold-start AWD/FWD wheelspin upshifts while retaining the conservative RWD power-curve gate.
-- Expand the Racing HUD and measure intrinsic content width so transmission, clutch, learning status, and window controls no longer overlap or clip.
-- Restore all EN/zh-CN labels for crossover learning, clutch controls, and rev-blip settings so the UI no longer displays raw i18n element names.
-- Show the Electron settings window immediately while the backend starts, fully quit from the window close button, and wait for the Windows backend process tree to terminate.
-- Narrow the Racing HUD and move its mode, learning, gearbox, and clutch indicators into a two-line footer.
-- Pause ratio and power-curve learning during clutch use and post-shift settling; require stable consecutive samples before assigning a ratio to a new gear.
-
 ### Changed
 
-- Combine torque-collapse limiter validation with cross-gear candidate confirmation and reachable-RPM fallback shift targets.
-- Add brief hill-crest shift holds, sustained-descent engine-brake recovery, atomic profile writes, and lossless migration of pre-13.9.5 profile files.
+- Restore all transmission shift decisions, pending-shift handling, gear-ratio learning, power-curve learning, rev-limiter detection, and airtime intervention to the `v13.9.4` implementation.
+- Keep the versioned atomic profile store so profiles written by later builds remain readable and older flat profile files migrate without data loss.
+
+### Fixed
+
+- Restore all EN/zh-CN labels for crossover learning, clutch controls, and rev-blip settings so the UI no longer displays raw i18n element names.
+- Keep the Racing HUD layout fixes that prevent transmission type, clutch state, learning status, and window controls from overlapping.
+- Show the Electron settings window immediately while the backend starts, fully quit from the window close button, and wait for the Windows backend process tree to terminate.
+- Fix backend endpoint selection and stale WebSocket close events after changing the listening port, so the new connection is not incorrectly shown as disconnected.
 
 ## [13.4.1] - 2026-06-13
 
