@@ -69,6 +69,95 @@ def test_failed_low_gear_upshift_retries_at_redline(make_logic, out, clock):
     assert len(ups) <= 6
 
 
+def test_manual_downshift_cancels_pending_without_learning_false_top(make_logic, out, clock):
+    tcu = make_logic("COMFORT")
+    td = make_telemetry(
+        gear=6,
+        current_rpm=7600,
+        engine_max_rpm=8000.0,
+        speed_ms=180.0 / 3.6,
+        accel_raw=255,
+        brake_raw=0,
+    )
+    tcu._prev_gear = td.gear
+    assert tcu._shift_up(td, 350, "UPSHIFT")
+
+    clock.now += 0.10
+    td.gear = 5
+    td.current_rpm = 5000
+    td.accel_raw = 0
+    tcu.process(td)
+
+    assert tcu._pending_upshift_from is None
+    assert CAR_KEY not in tcu._upshift_cap_by_key
+
+    clock.now += 2.0
+    tcu.process(td)
+    assert CAR_KEY not in tcu._upshift_cap_by_key
+    assert CAR_KEY not in tcu._cap_confirm
+
+
+def test_auto_upshift_recovers_after_manual_downshift_interrupt(make_logic, out, clock):
+    tcu = make_logic("COMFORT")
+    td = make_telemetry(
+        gear=5,
+        current_rpm=7600,
+        engine_max_rpm=8000.0,
+        speed_ms=160.0 / 3.6,
+        accel_raw=255,
+        brake_raw=0,
+    )
+    tcu._prev_gear = td.gear
+    assert tcu._shift_up(td, 350, "UPSHIFT")
+
+    clock.now += 0.10
+    td.gear = 4
+    td.current_rpm = 5000
+    td.accel_raw = 0
+    tcu.process(td)
+
+    clock.now += 1.0
+    out.now = clock.now
+    td.current_rpm = 7600
+    td.accel_raw = 255
+    tcu.process(td)
+
+    ups = [shift for shift in out.shifts if shift[0] == "UP"]
+    assert len(ups) == 2
+    assert tcu._pending_upshift_from == 4
+
+
+def test_repeated_manual_interruptions_never_create_sticky_cap(make_logic, clock):
+    tcu = make_logic("COMFORT")
+    td = make_telemetry(current_rpm=5000, accel_raw=0)
+
+    for from_gear, manual_gear in ((6, 5), (5, 4), (4, 3)):
+        td.gear = from_gear
+        tcu._prev_gear = from_gear
+        assert tcu._shift_up(td, 350, "UPSHIFT")
+
+        clock.now += 0.10
+        td.gear = manual_gear
+        tcu.process(td)
+
+        assert tcu._pending_upshift_from is None
+        assert CAR_KEY not in tcu._upshift_cap_by_key
+        assert CAR_KEY not in tcu._cap_confirm
+
+
+def test_in_progress_upshift_is_not_capped_on_timeout(make_logic, clock):
+    tcu = make_logic("COMFORT")
+    td = make_telemetry(gear=6, is_shifting=True)
+    assert tcu._shift_up(td, 350, "UPSHIFT")
+
+    clock.now += 1.5
+    tcu._resolve_pending_upshift(td, clock.now)
+
+    assert tcu._pending_upshift_from == 6
+    assert tcu._pending_upshift_until > clock.now
+    assert CAR_KEY not in tcu._upshift_cap_by_key
+
+
 def test_reverse_exit_does_not_block_launch_upshift(make_logic, out, clock):
     tcu = make_logic("COMFORT")
     td_r = make_telemetry(gear=0, speed_ms=0, accel_raw=0, vel_z=0)

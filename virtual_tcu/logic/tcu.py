@@ -448,6 +448,14 @@ class TCULogic:
         """Clear or cap upshift targets once the game confirms or rejects a shift."""
         if self._pending_upshift_from is None:
             return
+        if 0 < td.gear < self._pending_upshift_from:
+            # The driver (or another recovery path) selected a lower gear while
+            # an automatic upshift was awaiting confirmation. Treating that as
+            # a rejected upshift would incorrectly learn the lower gear as the
+            # transmission's top gear and can permanently block later upshifts.
+            self._pending_upshift_from = None
+            self._pending_upshift_until = 0.0
+            return
         if td.gear > self._pending_upshift_from:
             self._pending_upshift_from = None
             self._pending_upshift_until = 0.0
@@ -456,6 +464,12 @@ class TCULogic:
                 self._upshift_cap_by_key[ck] = 10
                 self._upshift_cap_set_at.pop(ck, None)
                 self._cap_confirm.pop(ck, None)  # gear advanced → not the top after all
+            return
+        if td.is_shifting:
+            # Do not reject a shift while Forza still reports that the gearbox
+            # is in transition. Some clutch gearboxes take longer than the
+            # normal acknowledgement window under load.
+            self._pending_upshift_until = max(self._pending_upshift_until, now + 0.25)
             return
         if now >= self._pending_upshift_until:
             ck = td.car_key
